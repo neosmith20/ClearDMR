@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ClearDMR Boot Write Test</title>
+  <title>ClearDMR Isolated Write Test</title>
   <link rel="stylesheet" href="../style.css">
   <link rel="stylesheet" href="cps.css">
   <style>
@@ -103,10 +103,10 @@
     <div class="container">
       <div class="brand">
         <a href="../index.html" class="brand-link"><span class="brand-name">ClearDMR</span></a>
-        <span class="brand-badge">Boot Write Test</span>
+        <span class="brand-badge">Isolated Write Test</span>
       </div>
       <p class="brand-tagline">
-        Experimental boot-settings radio write path
+        Experimental isolated radio write paths
       </p>
     </div>
   </header>
@@ -117,7 +117,7 @@
         <li><a href="../index.html" class="nav-link">Flash</a></li>
         <li><a href="../setup.html" class="nav-link">Setup Guide</a></li>
         <li><a href="index.html" class="nav-link">CPS</a></li>
-        <li><a href="test.html" class="nav-link active">Boot Text Test</a></li>
+        <li><a href="test.html" class="nav-link active">Write Test Lab</a></li>
         <li><a href="../about.html" class="nav-link">About</a></li>
       </ul>
     </div>
@@ -127,14 +127,14 @@
     <div class="test-shell">
       <div class="test-header">
         <div>
-          <h1 class="test-title">Boot Text and Mode Write Test</h1>
-          <p class="test-subtitle">Reads a full codeplug backup, then writes and verifies either the boot text block or the boot display mode as an isolated test-page workflow.</p>
+          <h1 class="test-title">Boot Text, Mode, and DMR ID Write Test</h1>
+          <p class="test-subtitle">Reads a full codeplug backup, then writes and verifies either the boot text block, the boot display mode, or the DMR ID bytes as an isolated test-page workflow.</p>
         </div>
         <a href="index.html" class="btn-sm btn-sm-outline">Back to Main CPS</a>
       </div>
 
       <div class="warn-banner">
-        <strong>Experimental boot-settings write test. Use at your own risk. Read and save a backup first.</strong>
+        <strong>Experimental isolated write test. Use at your own risk. Read and save a backup first.</strong>
       </div>
 
       <div class="section-card">
@@ -218,6 +218,40 @@
             <p class="write-status muted" id="editor-status">Read the radio to load the current boot text.</p>
           </div>
         </div>
+
+        <div class="section-card">
+          <div class="section-card-header"><h3>DMR ID</h3></div>
+          <div class="section-card-body">
+            <div class="test-current">
+              <div class="test-current-row">
+                <span class="field-label">Current DMR ID</span>
+                <div class="test-current-value" id="current-dmr-id">—</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">Raw @ 0x00E0</span>
+                <div class="test-current-value" id="current-dmr-raw">—</div>
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field-row">
+                <span class="field-label">Edit DMR ID</span>
+                <input
+                  type="number"
+                  id="edit-dmr-id"
+                  class="field-input"
+                  min="1"
+                  max="16776415"
+                  step="1"
+                  inputmode="numeric"
+                  placeholder="1 to 16776415">
+              </div>
+            </div>
+            <div class="test-actions">
+              <button class="btn-sm btn-sm-write" id="write-dmr-id-btn" type="button" disabled>Write DMR ID Only</button>
+            </div>
+            <p class="write-status muted" id="dmr-id-status">Read the radio to load the current DMR ID bytes.</p>
+          </div>
+        </div>
       </div>
 
       <div class="section-card">
@@ -225,8 +259,8 @@
         <div class="section-card-body">
           <p class="test-meta">1. Read from Radio.</p>
           <p class="test-meta">2. Save Backup from that same fresh read.</p>
-          <p class="test-meta">3. Change either the boot text or the boot display mode. Do not combine them in one write yet.</p>
-          <p class="test-meta">4. Run either Write Boot Text Only or Write Boot Mode Only and wait for the immediate readback verify to pass.</p>
+          <p class="test-meta">3. Change either the boot text, the boot display mode, or the DMR ID. Do not combine them in one write yet.</p>
+          <p class="test-meta">4. Run exactly one isolated write button and wait for the immediate readback verify to pass.</p>
           <p class="test-meta">5. Run Read Back &amp; Verify after text changes, then save a fresh post-write backup if needed.</p>
           <p class="test-meta">6. Power-cycle the radio and do another fresh read to confirm the setting persisted.</p>
         </div>
@@ -235,11 +269,13 @@
       <div class="section-card">
         <div class="section-card-header"><h3>Protocol Notes</h3></div>
         <div class="section-card-body">
-          <p class="test-meta">This page is the only place where the proven boot-text and boot-mode write paths are exposed for now. The main CPS page stays read-only until more write paths are hardware-proven.</p>
+          <p class="test-meta">This page is the only place where the proven boot-text, boot-mode, and isolated DMR ID write paths are exposed for now. The main CPS page stays read-only until more write paths are hardware-proven.</p>
           <p class="test-meta">Read path: open the port, clear only buffered accumulator state, then send direct <code>R</code> requests. No <code>C 00</code> or <code>C FE</code> init commands are sent before reads.</p>
           <p class="test-meta">Read responses: every response is treated as a strict <code>R</code>-framed packet. The reader sync-scans for <code>0x52</code>, logs and discards any pre-sync bytes, then reads the big-endian payload length and exact payload.</p>
           <p class="test-meta">Boot text write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7540</code>, <code>X 02</code> overlay the 32 boot-text bytes, then <code>X 03</code> erase/program the sector. <code>X 04</code> must not be used on STM32 because it can ACK without modifying flash.</p>
           <p class="test-meta">Boot display mode write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7518</code>, <code>X 02</code> overlay exactly one byte at <code>0x7518</code>, then <code>X 03</code> erase/program the sector. Immediate readback must return <code>0x00</code> for Picture or <code>0x01</code> for Text.</p>
+          <p class="test-meta">DMR ID write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x00E0</code>, <code>X 02</code> overlay exactly four DMR ID bytes at <code>0x00E0</code>, then <code>X 03</code> erase/program the sector. Immediate readback must return the exact four bytes just written.</p>
+          <p class="test-meta">This DMR ID lab validates the editable value before write and rejects anything outside <code>1</code> to <code>16776415</code>.</p>
         </div>
       </div>
     </div>
@@ -263,6 +299,10 @@
   const BOOT_DISPLAY_MODE_PICTURE = 0x00;
   const BOOT_DISPLAY_MODE_TEXT = 0x01;
   const BOOT_TEXT_OFFSET = 0x7540;
+  const DMR_ID_OFFSET = 0x00E0;
+  const DMR_ID_LENGTH = 4;
+  const DMR_ID_MIN = 1;
+  const DMR_ID_MAX = 16776415;
   const TEST_BOOT_TEXT_LINE_LEN = 16;
   const TEST_BOOT_TEXT_TOTAL_LEN = 32;
   const CODEPLUG_SIZE = 0x20000;
@@ -297,6 +337,11 @@
   const editLine1El = document.getElementById('edit-line1');
   const editLine2El = document.getElementById('edit-line2');
   const editorStatusEl = document.getElementById('editor-status');
+  const currentDmrIdEl = document.getElementById('current-dmr-id');
+  const currentDmrRawEl = document.getElementById('current-dmr-raw');
+  const editDmrIdEl = document.getElementById('edit-dmr-id');
+  const writeDmrIdBtn = document.getElementById('write-dmr-id-btn');
+  const dmrIdStatusEl = document.getElementById('dmr-id-status');
 
   function makeStamp() {
     const d = new Date();
@@ -317,6 +362,11 @@
   function setBootModeStatus(msg, cls = 'muted') {
     bootModeStatusEl.textContent = msg;
     bootModeStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
+  }
+
+  function setDmrIdStatus(msg, cls = 'muted') {
+    dmrIdStatusEl.textContent = msg;
+    dmrIdStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
   }
 
   function setProgress(pct, msg = '') {
@@ -370,6 +420,13 @@
     return new Uint8Array(arrayBuffer.slice(BOOT_TEXT_OFFSET, BOOT_TEXT_OFFSET + TEST_BOOT_TEXT_TOTAL_LEN));
   }
 
+  function extractDmrIdBytes(arrayBuffer) {
+    if (arrayBuffer.byteLength < CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${CODEPLUG_SIZE}.`);
+    }
+    return new Uint8Array(arrayBuffer.slice(DMR_ID_OFFSET, DMR_ID_OFFSET + DMR_ID_LENGTH));
+  }
+
   function compareBootTextBytes(expected, actual) {
     if (expected.length !== actual.length) {
       throw new Error(`Verify failed: expected ${expected.length} bytes, read ${actual.length}.`);
@@ -387,6 +444,54 @@
 
   function formatHexByte(value) {
     return `0x${value.toString(16).toUpperCase().padStart(2, '0')}`;
+  }
+
+  function formatHexBytes(bytes) {
+    return Array.from(bytes, value => formatHexByte(value)).join(' ');
+  }
+
+  function encodeDmrIdBytes(value) {
+    const buffer = new ArrayBuffer(DMR_ID_LENGTH);
+    const view = new DataView(buffer);
+    view.setUint32(0, value >>> 0, true);
+    return new Uint8Array(buffer);
+  }
+
+  function decodeDmrIdValue(arrayBuffer) {
+    if (arrayBuffer.byteLength < CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${CODEPLUG_SIZE}.`);
+    }
+    return new DataView(arrayBuffer).getUint32(DMR_ID_OFFSET, true);
+  }
+
+  function validateDmrIdValue(rawInput) {
+    const text = String(rawInput ?? '').trim();
+    if (!text) {
+      return { ok: false, empty: true, reason: `Enter a DMR ID from ${DMR_ID_MIN} to ${DMR_ID_MAX}.` };
+    }
+    if (!/^\d+$/.test(text)) {
+      return { ok: false, empty: false, reason: 'DMR ID must contain digits only.' };
+    }
+    const value = Number(text);
+    if (!Number.isSafeInteger(value)) {
+      return { ok: false, empty: false, reason: 'DMR ID is too large.' };
+    }
+    if (value < DMR_ID_MIN || value > DMR_ID_MAX) {
+      return {
+        ok: false,
+        empty: false,
+        reason: `DMR ID must be between ${DMR_ID_MIN} and ${DMR_ID_MAX}.`,
+      };
+    }
+    return { ok: true, empty: false, value };
+  }
+
+  function renderCurrentDmrId(parser) {
+    const value = decodeDmrIdValue(parser.toArrayBuffer());
+    const rawBytes = extractDmrIdBytes(parser.toArrayBuffer());
+    const suffix = (value < DMR_ID_MIN || value > DMR_ID_MAX) ? ' (out of lab range)' : '';
+    currentDmrIdEl.textContent = `${value}${suffix}`;
+    currentDmrRawEl.textContent = formatHexBytes(rawBytes);
   }
 
   function isKnownBootDisplayMode(rawValue) {
@@ -451,12 +556,14 @@
     const asciiOk = ASCII_RE.test(lines.line1) && ASCII_RE.test(lines.line2);
     const selectedBootMode = getSelectedBootModeValue();
     const bootModeSelected = selectedBootMode === BOOT_DISPLAY_MODE_PICTURE || selectedBootMode === BOOT_DISPLAY_MODE_TEXT;
+    const dmrIdValidation = validateDmrIdValue(editDmrIdEl.value);
 
     readBtn.disabled = busy;
     saveBackupBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead;
     verifyBtn.disabled = busy || !hasCodeplug;
     writeBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !asciiOk;
     writeBootModeBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !bootModeSelected;
+    writeDmrIdBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !dmrIdValidation.ok;
 
     if (!hasCodeplug) {
       setEditorStatus('Read the radio to load the current boot text.', 'muted');
@@ -482,6 +589,18 @@
       setBootModeStatus('Ready to write boot display mode only.', 'ok');
     }
 
+    if (!hasCodeplug) {
+      setDmrIdStatus('Read the radio to load the current DMR ID bytes.', 'muted');
+    } else if (!sessionFreshRadioRead) {
+      setDmrIdStatus('Read the radio again before any further write.', 'muted');
+    } else if (!sessionBackupSaved) {
+      setDmrIdStatus('Save a backup from this fresh read before writing.', 'muted');
+    } else if (!dmrIdValidation.ok) {
+      setDmrIdStatus(dmrIdValidation.reason, dmrIdValidation.empty ? 'muted' : 'err');
+    } else {
+      setDmrIdStatus('Ready to write DMR ID only.', 'ok');
+    }
+
     refreshSessionMeta();
   }
 
@@ -494,10 +613,12 @@
       syncBootModeSelector(loadedCodeplug.view.getUint8(BOOT_DISPLAY_MODE_OFFSET));
     }
     renderCurrentBootText(loadedCodeplug);
+    renderCurrentDmrId(loadedCodeplug);
     if (syncEditor) {
       const text = loadedCodeplug.bootText;
       editLine1El.value = text.line1;
       editLine2El.value = text.line2;
+      editDmrIdEl.value = String(decodeDmrIdValue(buffer));
     }
     refreshButtons();
   }
@@ -543,9 +664,75 @@
     const blob = new Blob([loadedCodeplug.toArrayBuffer()], { type: 'application/octet-stream' });
     downloadBlob(loadedFilename || `boottext_test_backup_${makeStamp()}.g77`, blob);
     sessionBackupSaved = true;
-    setStatus('Backup saved. You may now write boot text only or boot mode only.', 'ok');
+    setStatus('Backup saved. You may now write boot text only, boot mode only, or DMR ID only.', 'ok');
     refreshButtons();
   });
+
+  function compareDmrIdBytes(expected, actual) {
+    if (actual.length !== expected.length) {
+      throw new Error(`DMR ID verify failed: expected ${expected.length} bytes, read ${actual.length}.`);
+    }
+    for (let i = 0; i < expected.length; i++) {
+      if (actual[i] !== expected[i]) {
+        throw new Error(
+          `DMR ID verify mismatch at 0x${(DMR_ID_OFFSET + i).toString(16).toUpperCase()}: ` +
+          `wrote ${formatHexByte(expected[i])}, read ${formatHexByte(actual[i])}.`
+        );
+      }
+    }
+  }
+
+  async function cpwrWriteDmrIdOnly(dmrIdValue, onProgress) {
+    if (!navigator.serial) {
+      throw new Error('Web Serial API not available. Use Chrome or Edge 89+.');
+    }
+
+    const validation = validateDmrIdValue(String(dmrIdValue));
+    if (!validation.ok) {
+      throw new Error(validation.reason);
+    }
+
+    const payload = encodeDmrIdBytes(validation.value);
+    cpwrEnsureSingleWriteSector(DMR_ID_OFFSET, DMR_ID_LENGTH, TEST_STM32_SECTOR_SIZE);
+
+    let session = null;
+    let readTaskStarted = false;
+
+    try {
+      onProgress?.({ phase: 'write', pct: 0, msg: 'Connecting…' });
+      session = await cprdOpenSerialSession(TEST_SERIAL_FILTERS, 'cpwrWriteDmrIdOnly', { claimIO: false });
+      const { port } = session;
+      await cpwrDrainBuffer(port);
+      cprdClaimSerialSessionIO(session);
+      session.writer.__cprdSession = session;
+      const { writer, acc } = session;
+      await cprdPrimeRadioConnection(writer, acc);
+      const radioInfo = await cprdReadRadioInfo(writer, acc);
+      if (!radioInfo.isSTM32) {
+        throw new Error(`Unsupported radio type ${radioInfo.radioType}. This DMR ID write path is hardened only for STM32-family radios.`);
+      }
+
+      onProgress?.({ phase: 'write', pct: 35, msg: 'Writing DMR ID bytes…' });
+      await cpwrPrepareSector(writer, acc, DMR_ID_OFFSET, TEST_WRITE_BYTE);
+      await cpwrSendData(writer, acc, DMR_ID_OFFSET, payload, TEST_WRITE_BYTE);
+      await cpwrWriteSector(writer, acc, DMR_ID_OFFSET, TEST_WRITE_BYTE);
+
+      await cprdBeginCodeplugReadTask(writer, acc);
+      readTaskStarted = true;
+      onProgress?.({ phase: 'verify', pct: 70, msg: 'Reading back DMR ID bytes…' });
+      const readBack = await cprdReadChunk(writer, acc, TEST_READ_FLASH_AREA, DMR_ID_OFFSET, DMR_ID_LENGTH, 0);
+      compareDmrIdBytes(payload, readBack);
+      await cprdEndCodeplugReadTask(writer, acc);
+      readTaskStarted = false;
+
+      return { ok: true, radioInfo, value: validation.value, bytes: payload.slice() };
+    } finally {
+      if (readTaskStarted && session?.writer && session?.acc) {
+        try { await cprdEndCodeplugReadTask(session.writer, session.acc); } catch (_) {}
+      }
+      await cprdCloseSerialSession(session, readTaskStarted ? 'dmr id write aborted during verify' : 'dmr id write completed');
+    }
+  }
 
   async function cpwrWriteBootDisplayMode(modeValue, onProgress) {
     if (!navigator.serial) {
@@ -683,6 +870,49 @@
     }
   });
 
+  writeDmrIdBtn.addEventListener('click', async () => {
+    if (!loadedCodeplug || !sessionFreshRadioRead || !sessionBackupSaved) return;
+    const validation = validateDmrIdValue(editDmrIdEl.value);
+    if (!validation.ok) {
+      setStatus(`DMR ID write blocked: ${validation.reason}`, 'err');
+      refreshButtons();
+      return;
+    }
+
+    busy = true;
+    resetProgress();
+    setStatus('Preparing DMR ID write…', 'muted');
+    refreshButtons();
+
+    try {
+      const writeBuffer = loadedCodeplug.toArrayBuffer();
+      new Uint8Array(writeBuffer).set(encodeDmrIdBytes(validation.value), DMR_ID_OFFSET);
+      await cpwrWriteDmrIdOnly(validation.value, ({ pct, msg }) => {
+        setProgress(pct, msg || 'Writing DMR ID…');
+      });
+      const filename = loadedFilename;
+      sessionFreshRadioRead = false;
+      sessionBackupSaved = false;
+      setLoadedCodeplug(writeBuffer, filename, { syncEditor: false, syncBootMode: false });
+      editDmrIdEl.value = String(validation.value);
+      progressFill.style.width = '100%';
+      progressLabel.textContent = '100%';
+      setStatus('DMR ID write succeeded. Immediate readback matched exactly. Read the radio again before any further write.', 'ok');
+    } catch (err) {
+      resetProgress();
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.', 'muted');
+      } else {
+        sessionFreshRadioRead = false;
+        sessionBackupSaved = false;
+        setStatus(`DMR ID write failed: ${err.message}`, 'err');
+      }
+    } finally {
+      busy = false;
+      refreshButtons();
+    }
+  });
+
   verifyBtn.addEventListener('click', async () => {
     if (!loadedCodeplug) return;
     busy = true;
@@ -721,6 +951,7 @@
     el.addEventListener('input', refreshButtons);
   });
   bootModeSelectEl.addEventListener('change', refreshButtons);
+  editDmrIdEl.addEventListener('input', refreshButtons);
 
   resetProgress();
   refreshButtons();
