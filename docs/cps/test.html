@@ -132,8 +132,8 @@
     <div class="test-shell">
       <div class="test-header">
         <div>
-          <h1 class="test-title">Boot Text, Mode, and Identity Inspector</h1>
-          <p class="test-subtitle">Reads a full codeplug backup, then writes and verifies either the boot text block or the boot display mode while exposing a read-only identity-area inspector for locating the actual DMR ID bytes.</p>
+          <h1 class="test-title">Boot Text, Mode, Callsign, and Identity Inspector</h1>
+          <p class="test-subtitle">Reads a full codeplug backup, then writes and verifies either the boot text block, the boot display mode, or the callsign field while exposing a read-only identity-area inspector for locating the actual DMR ID bytes.</p>
         </div>
         <a href="index.html" class="btn-sm btn-sm-outline">Back to Main CPS</a>
       </div>
@@ -192,7 +192,7 @@
         </div>
 
         <div class="section-card">
-          <div class="section-card-header"><h3>Current on Radio</h3></div>
+          <div class="section-card-header"><h3>Current Boot Text</h3></div>
           <div class="section-card-body">
             <div class="test-current">
               <div class="test-current-row">
@@ -221,6 +221,32 @@
               </div>
             </div>
             <p class="write-status muted" id="editor-status">Read the radio to load the current boot text.</p>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-card-header"><h3>Callsign Write Only</h3></div>
+          <div class="section-card-body">
+            <div class="test-current">
+              <div class="test-current-row">
+                <span class="field-label">Current Callsign</span>
+                <div class="test-current-value" id="current-callsign">—</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">Raw @ 0x00E0-0x00E7</span>
+                <div class="test-current-value" id="current-callsign-raw">—</div>
+              </div>
+            </div>
+            <div class="field-group" style="margin-top: 12px;">
+              <div class="field-row">
+                <span class="field-label">Edit Callsign</span>
+                <input type="text" id="edit-callsign" class="field-input" maxlength="8" placeholder="ASCII only, max 8 chars">
+              </div>
+            </div>
+            <div class="test-actions">
+              <button class="btn-sm btn-sm-write" id="write-callsign-btn" type="button" disabled>Write Callsign Only</button>
+            </div>
+            <p class="write-status muted" id="callsign-status">Read the radio to load the current callsign.</p>
           </div>
         </div>
 
@@ -277,7 +303,7 @@
         <div class="section-card-body">
           <p class="test-meta">1. Read from Radio.</p>
           <p class="test-meta">2. Save Backup from that same fresh read.</p>
-          <p class="test-meta">3. Change either the boot text or the boot display mode. Keep identity-area inspection read-only while locating the actual DMR ID bytes.</p>
+          <p class="test-meta">3. Change either the boot text, the boot display mode, or the callsign. Keep DMR identity-area inspection read-only while locating the actual DMR ID bytes.</p>
           <p class="test-meta">4. Run exactly one isolated write button and wait for the immediate readback verify to pass.</p>
           <p class="test-meta">5. Run Read Back &amp; Verify after text changes, then save a fresh post-write backup if needed.</p>
           <p class="test-meta">6. Power-cycle the radio and do another fresh read to confirm the setting persisted.</p>
@@ -292,6 +318,7 @@
           <p class="test-meta">Read responses: every response is treated as a strict <code>R</code>-framed packet. The reader sync-scans for <code>0x52</code>, logs and discards any pre-sync bytes, then reads the big-endian payload length and exact payload.</p>
           <p class="test-meta">Boot text write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7540</code>, <code>X 02</code> overlay the 32 boot-text bytes, then <code>X 03</code> erase/program the sector. <code>X 04</code> must not be used on STM32 because it can ACK without modifying flash.</p>
           <p class="test-meta">Boot display mode write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7518</code>, <code>X 02</code> overlay exactly one byte at <code>0x7518</code>, then <code>X 03</code> erase/program the sector. Immediate readback must return <code>0x00</code> for Picture or <code>0x01</code> for Text.</p>
+          <p class="test-meta">Callsign write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x00E0</code>, <code>X 02</code> overlay exactly 8 bytes at <code>0x00E0-0x00E7</code>, then <code>X 03</code> erase/program the sector. Immediate readback must match the FF-padded ASCII callsign bytes exactly.</p>
           <p class="test-meta">Identity inspector: <code>0x00E0-0x00E7</code> is treated as callsign ASCII, FF-padded. <code>0x00E8-0x00EB</code> is exposed as a read-only DMR ID candidate with little-endian, big-endian, and packed-decimal decode views.</p>
           <p class="test-meta">DMR write remains disabled here until one of those candidate decodes matches the radio&rsquo;s known programmed DMR ID and the storage format is hardware-proven.</p>
         </div>
@@ -359,6 +386,11 @@
   const editLine1El = document.getElementById('edit-line1');
   const editLine2El = document.getElementById('edit-line2');
   const editorStatusEl = document.getElementById('editor-status');
+  const currentCallsignEl = document.getElementById('current-callsign');
+  const currentCallsignRawEl = document.getElementById('current-callsign-raw');
+  const editCallsignEl = document.getElementById('edit-callsign');
+  const writeCallsignBtn = document.getElementById('write-callsign-btn');
+  const callsignStatusEl = document.getElementById('callsign-status');
   const identityCallsignRawEl = document.getElementById('identity-callsign-raw');
   const identityCallsignAsciiEl = document.getElementById('identity-callsign-ascii');
   const identityCandidateRawEl = document.getElementById('identity-candidate-raw');
@@ -396,6 +428,11 @@
     identityStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
   }
 
+  function setCallsignStatus(msg, cls = 'muted') {
+    callsignStatusEl.textContent = msg;
+    callsignStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
+  }
+
   function setProgress(pct, msg = '') {
     progressWrap.classList.add('visible');
     progressFill.style.width = `${pct}%`;
@@ -425,6 +462,10 @@
     };
   }
 
+  function getEditedCallsign() {
+    return (editCallsignEl.value || '').substring(0, IDENTITY_CALLSIGN_LENGTH);
+  }
+
   function encodeBootTextBytes(lines) {
     const out = new Uint8Array(TEST_BOOT_TEXT_TOTAL_LEN);
     out.fill(0xFF);
@@ -447,6 +488,19 @@
     return new Uint8Array(arrayBuffer.slice(BOOT_TEXT_OFFSET, BOOT_TEXT_OFFSET + TEST_BOOT_TEXT_TOTAL_LEN));
   }
 
+  function encodeCallsignBytes(text) {
+    const clipped = String(text || '').substring(0, IDENTITY_CALLSIGN_LENGTH);
+    if (!ASCII_RE.test(clipped)) {
+      throw new Error('Callsign must use printable ASCII characters only.');
+    }
+    const out = new Uint8Array(IDENTITY_CALLSIGN_LENGTH);
+    out.fill(0xFF);
+    for (let i = 0; i < clipped.length; i++) {
+      out[i] = clipped.charCodeAt(i);
+    }
+    return out;
+  }
+
   function extractIdentityBytes(arrayBuffer, offset, length) {
     if (arrayBuffer.byteLength < CODEPLUG_SIZE) {
       throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${CODEPLUG_SIZE}.`);
@@ -463,6 +517,21 @@
         throw new Error(
           `Verify mismatch at 0x${(BOOT_TEXT_OFFSET + i).toString(16).toUpperCase()}: ` +
           `expected 0x${expected[i].toString(16).toUpperCase().padStart(2, '0')}, ` +
+          `read 0x${actual[i].toString(16).toUpperCase().padStart(2, '0')}.`
+        );
+      }
+    }
+  }
+
+  function compareBytesAtOffset(expected, actual, offset, label) {
+    if (expected.length !== actual.length) {
+      throw new Error(`${label} verify failed: expected ${expected.length} bytes, read ${actual.length}.`);
+    }
+    for (let i = 0; i < expected.length; i++) {
+      if (expected[i] !== actual[i]) {
+        throw new Error(
+          `${label} verify mismatch at 0x${(offset + i).toString(16).toUpperCase()}: ` +
+          `wrote 0x${expected[i].toString(16).toUpperCase().padStart(2, '0')}, ` +
           `read 0x${actual[i].toString(16).toUpperCase().padStart(2, '0')}.`
         );
       }
@@ -659,6 +728,13 @@
     currentLine2El.textContent = text.line2 || '—';
   }
 
+  function renderCurrentCallsign(parser) {
+    const bytes = extractIdentityBytes(parser.toArrayBuffer(), IDENTITY_CALLSIGN_OFFSET, IDENTITY_CALLSIGN_LENGTH);
+    const text = trimAsciiFF(bytes);
+    currentCallsignEl.textContent = text || '—';
+    currentCallsignRawEl.textContent = formatHexBytes(bytes);
+  }
+
   function refreshSessionMeta() {
     if (!loadedCodeplug) {
       sessionMetaEl.textContent = 'No radio read yet.';
@@ -673,8 +749,10 @@
 
   function refreshButtons() {
     const lines = getEditedLines();
+    const callsign = getEditedCallsign();
     const hasCodeplug = !!loadedCodeplug;
     const asciiOk = ASCII_RE.test(lines.line1) && ASCII_RE.test(lines.line2);
+    const callsignAsciiOk = ASCII_RE.test(callsign);
     const selectedBootMode = getSelectedBootModeValue();
     const bootModeSelected = selectedBootMode === BOOT_DISPLAY_MODE_PICTURE || selectedBootMode === BOOT_DISPLAY_MODE_TEXT;
 
@@ -683,6 +761,7 @@
     verifyBtn.disabled = busy || !hasCodeplug;
     writeBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !asciiOk;
     writeBootModeBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !bootModeSelected;
+    writeCallsignBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !callsignAsciiOk;
 
     if (!hasCodeplug) {
       setEditorStatus('Read the radio to load the current boot text.', 'muted');
@@ -709,6 +788,18 @@
     }
 
     if (!hasCodeplug) {
+      setCallsignStatus('Read the radio to load the current callsign.', 'muted');
+    } else if (!callsignAsciiOk) {
+      setCallsignStatus('Callsign must use printable ASCII characters only.', 'err');
+    } else if (!sessionFreshRadioRead) {
+      setCallsignStatus('Read the radio again before any further write.', 'muted');
+    } else if (!sessionBackupSaved) {
+      setCallsignStatus('Save a backup from this fresh read before writing.', 'muted');
+    } else {
+      setCallsignStatus('Ready to write callsign only.', 'ok');
+    }
+
+    if (!hasCodeplug) {
       setIdentityStatus('Read the radio to inspect callsign bytes at 0x00E0 and the DMR ID candidate at 0x00E8.', 'muted');
     } else {
       setIdentityStatus('Identity-area inspector refreshed from the loaded codeplug buffer.', 'ok');
@@ -717,7 +808,7 @@
     refreshSessionMeta();
   }
 
-  function setLoadedCodeplug(buffer, filename, { syncEditor = false, syncBootMode = true } = {}) {
+  function setLoadedCodeplug(buffer, filename, { syncEditor = false, syncBootMode = true, syncCallsign = false } = {}) {
     loadedCodeplug = new CodeplugParser(buffer);
     loadedCodeplug.filename = filename;
     loadedFilename = filename;
@@ -726,11 +817,15 @@
       syncBootModeSelector(loadedCodeplug.view.getUint8(BOOT_DISPLAY_MODE_OFFSET));
     }
     renderCurrentBootText(loadedCodeplug);
+    renderCurrentCallsign(loadedCodeplug);
     renderIdentityInspector(loadedCodeplug);
     if (syncEditor) {
       const text = loadedCodeplug.bootText;
       editLine1El.value = text.line1;
       editLine2El.value = text.line2;
+    }
+    if (syncCallsign) {
+      editCallsignEl.value = trimAsciiFF(extractIdentityBytes(buffer, IDENTITY_CALLSIGN_OFFSET, IDENTITY_CALLSIGN_LENGTH));
     }
     refreshButtons();
   }
@@ -747,7 +842,7 @@
       const filename = `boottext_test_backup_${makeStamp()}.g77`;
       sessionFreshRadioRead = true;
       sessionBackupSaved = false;
-      setLoadedCodeplug(result.buffer, filename, { syncEditor });
+      setLoadedCodeplug(result.buffer, filename, { syncEditor, syncCallsign: true });
       progressFill.style.width = '100%';
       progressLabel.textContent = '100%';
       setStatus('Radio read complete. Save this backup before writing anything.', 'ok');
@@ -776,7 +871,7 @@
     const blob = new Blob([loadedCodeplug.toArrayBuffer()], { type: 'application/octet-stream' });
     downloadBlob(loadedFilename || `boottext_test_backup_${makeStamp()}.g77`, blob);
     sessionBackupSaved = true;
-    setStatus('Backup saved. You may now write boot text only or boot mode only.', 'ok');
+    setStatus('Backup saved. You may now write boot text only, boot mode only, or callsign only.', 'ok');
     refreshButtons();
   });
 
@@ -840,6 +935,59 @@
         try { await cprdEndCodeplugReadTask(session.writer, session.acc); } catch (_) {}
       }
       await cprdCloseSerialSession(session, readTaskStarted ? 'boot mode write aborted during verify' : 'boot mode write completed');
+    }
+  }
+
+  async function cpwrWriteCallsign(payload, onProgress) {
+    if (!navigator.serial) {
+      throw new Error('Web Serial API not available. Use Chrome or Edge 89+.');
+    }
+    if (!(payload instanceof Uint8Array) || payload.length !== IDENTITY_CALLSIGN_LENGTH) {
+      throw new Error(`Refusing callsign write for invalid payload length ${payload?.length ?? 0}.`);
+    }
+
+    cpwrEnsureSingleWriteSector(
+      IDENTITY_CALLSIGN_OFFSET,
+      IDENTITY_CALLSIGN_LENGTH,
+      TEST_STM32_SECTOR_SIZE
+    );
+
+    let session = null;
+    let readTaskStarted = false;
+
+    try {
+      onProgress?.({ phase: 'write', pct: 0, msg: 'Connecting…' });
+      session = await cprdOpenSerialSession(TEST_SERIAL_FILTERS, 'cpwrWriteCallsign', { claimIO: false });
+      const { port } = session;
+      await cpwrDrainBuffer(port);
+      cprdClaimSerialSessionIO(session);
+      session.writer.__cprdSession = session;
+      const { writer, acc } = session;
+      await cprdPrimeRadioConnection(writer, acc);
+      const radioInfo = await cprdReadRadioInfo(writer, acc);
+      if (!radioInfo.isSTM32) {
+        throw new Error(`Unsupported radio type ${radioInfo.radioType}. This callsign write path is hardened only for STM32-family radios.`);
+      }
+
+      onProgress?.({ phase: 'write', pct: 35, msg: 'Writing callsign bytes…' });
+      await cpwrPrepareSector(writer, acc, IDENTITY_CALLSIGN_OFFSET, TEST_WRITE_BYTE);
+      await cpwrSendData(writer, acc, IDENTITY_CALLSIGN_OFFSET, payload, TEST_WRITE_BYTE);
+      await cpwrWriteSector(writer, acc, IDENTITY_CALLSIGN_OFFSET, TEST_WRITE_BYTE);
+
+      await cprdBeginCodeplugReadTask(writer, acc);
+      readTaskStarted = true;
+      onProgress?.({ phase: 'verify', pct: 70, msg: 'Reading back callsign bytes…' });
+      const readBack = await cprdReadChunk(writer, acc, TEST_READ_FLASH_AREA, IDENTITY_CALLSIGN_OFFSET, IDENTITY_CALLSIGN_LENGTH, 0);
+      compareBytesAtOffset(payload, readBack, IDENTITY_CALLSIGN_OFFSET, 'Callsign');
+      await cprdEndCodeplugReadTask(writer, acc);
+      readTaskStarted = false;
+
+      return { ok: true, radioInfo, payload };
+    } finally {
+      if (readTaskStarted && session?.writer && session?.acc) {
+        try { await cprdEndCodeplugReadTask(session.writer, session.acc); } catch (_) {}
+      }
+      await cprdCloseSerialSession(session, readTaskStarted ? 'callsign write aborted during verify' : 'callsign write completed');
     }
   }
 
@@ -920,6 +1068,47 @@
     }
   });
 
+  writeCallsignBtn.addEventListener('click', async () => {
+    if (!loadedCodeplug || !sessionFreshRadioRead || !sessionBackupSaved) return;
+
+    busy = true;
+    resetProgress();
+    setStatus('Preparing callsign write…', 'muted');
+    refreshButtons();
+
+    try {
+      const callsign = getEditedCallsign();
+      const payload = encodeCallsignBytes(callsign);
+      const writeBuffer = loadedCodeplug.toArrayBuffer();
+      const parser = new CodeplugParser(writeBuffer);
+      new Uint8Array(writeBuffer, IDENTITY_CALLSIGN_OFFSET, IDENTITY_CALLSIGN_LENGTH).set(payload);
+      await cpwrWriteCallsign(payload, ({ pct, msg }) => {
+        setProgress(pct, msg || 'Writing callsign…');
+      });
+      loadedCodeplug = parser;
+      renderCurrentCallsign(parser);
+      renderIdentityInspector(parser);
+      editCallsignEl.value = callsign;
+      sessionFreshRadioRead = false;
+      sessionBackupSaved = false;
+      progressFill.style.width = '100%';
+      progressLabel.textContent = '100%';
+      setStatus('Callsign write succeeded. Immediate readback matched exactly. Read the radio again before any further write.', 'ok');
+    } catch (err) {
+      resetProgress();
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.', 'muted');
+      } else {
+        sessionFreshRadioRead = false;
+        sessionBackupSaved = false;
+        setStatus(`Callsign write failed: ${err.message}`, 'err');
+      }
+    } finally {
+      busy = false;
+      refreshButtons();
+    }
+  });
+
   verifyBtn.addEventListener('click', async () => {
     if (!loadedCodeplug) return;
     busy = true;
@@ -954,7 +1143,7 @@
     }
   });
 
-  [editLine1El, editLine2El].forEach(el => {
+  [editLine1El, editLine2El, editCallsignEl].forEach(el => {
     el.addEventListener('input', refreshButtons);
   });
   bootModeSelectEl.addEventListener('change', refreshButtons);
