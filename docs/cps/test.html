@@ -311,6 +311,26 @@
       </div>
 
       <div class="section-card">
+        <div class="section-card-header"><h3>Callsign Notes</h3></div>
+        <div class="section-card-body">
+          <p class="test-meta">Callsign field: <code>0x00E0-0x00E7</code>, 8 bytes, printable ASCII, padded with <code>0xFF</code>.</p>
+          <p class="test-meta">Examples: <code>W0PWR = 57 30 50 57 52 FF FF FF</code> and <code>TEST123 = 54 45 53 54 31 32 33 FF</code>.</p>
+          <p class="test-meta">Guardrails: fresh Read from Radio required, Save Backup required, ASCII-only input, max 8 characters, pad unused bytes with <code>0xFF</code> and never <code>0x00</code>, write only <code>0x00E0-0x00E7</code>.</p>
+          <p class="test-meta">Write flow: <code>X 01</code> prepare 4 KB sector, <code>X 02</code> overlay callsign bytes at <code>0x00E0</code>, <code>X 03</code> erase/program sector, then immediate readback verify of only the 8 callsign bytes.</p>
+          <p class="test-meta">After callsign write success, the session is marked stale and a fresh Read from Radio is required before any further write.</p>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-header"><h3>Edge Cases</h3></div>
+        <div class="section-card-body">
+          <p class="test-meta">1. Short callsign like <code>A</code> should encode as <code>41 FF FF FF FF FF FF FF</code>.</p>
+          <p class="test-meta">2. Full 8-character callsign should use all 8 bytes with no padding.</p>
+          <p class="test-meta">3. Revert to the original callsign and verify again.</p>
+        </div>
+      </div>
+
+      <div class="section-card">
         <div class="section-card-header"><h3>Protocol Notes</h3></div>
         <div class="section-card-body">
           <p class="test-meta">This page is the only place where the proven boot-text and boot-mode write paths are exposed for now. The main CPS page stays read-only until more write paths are hardware-proven.</p>
@@ -319,8 +339,10 @@
           <p class="test-meta">Boot text write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7540</code>, <code>X 02</code> overlay the 32 boot-text bytes, then <code>X 03</code> erase/program the sector. <code>X 04</code> must not be used on STM32 because it can ACK without modifying flash.</p>
           <p class="test-meta">Boot display mode write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7518</code>, <code>X 02</code> overlay exactly one byte at <code>0x7518</code>, then <code>X 03</code> erase/program the sector. Immediate readback must return <code>0x00</code> for Picture or <code>0x01</code> for Text.</p>
           <p class="test-meta">Callsign write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x00E0</code>, <code>X 02</code> overlay exactly 8 bytes at <code>0x00E0-0x00E7</code>, then <code>X 03</code> erase/program the sector. Immediate readback must match the FF-padded ASCII callsign bytes exactly.</p>
-          <p class="test-meta">Identity inspector: <code>0x00E0-0x00E7</code> is treated as callsign ASCII, FF-padded. <code>0x00E8-0x00EB</code> is exposed as a read-only DMR ID candidate with little-endian, big-endian, and packed-decimal decode views.</p>
-          <p class="test-meta">DMR write remains disabled here until one of those candidate decodes matches the radio&rsquo;s known programmed DMR ID and the storage format is hardware-proven.</p>
+          <p class="test-meta">Callsign guardrails: fresh Read from Radio required, Save Backup required, ASCII-only validation, max 8 characters, pad with <code>0xFF</code> and never <code>0x00</code>, write only <code>0x00E0-0x00E7</code>, and mark the session stale after success.</p>
+          <p class="test-meta">Identity inspector: <code>0x00E0-0x00E7</code> is treated as callsign ASCII, FF-padded. <code>0x00E8-0x00EB</code> matched known DMR ID <code>3214246</code> as packed decimal byte order: <code>03 21 42 46 -> 03214246 -> 3214246</code>.</p>
+          <p class="test-meta">DMR ID remains read-only here until that storage format is confirmed across multiple radios and multiple codeplugs. Do not enable DMR ID writes yet.</p>
+          <p class="test-meta">Do not enable full-codeplug write here. This page remains an isolated hardware write lab.</p>
         </div>
       </div>
     </div>

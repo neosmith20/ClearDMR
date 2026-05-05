@@ -63,11 +63,43 @@
 - Reason: full-codeplug write is not hardware-proven yet
 - Isolated write paths remain only on `docs/cps/test.html`
 
+### 7. Callsign write test hardware-proven
+- Isolated page: `docs/cps/test.html`
+- Callsign field:
+  `offset 0x00E0`
+  `length 8 bytes`
+  `encoding printable ASCII`
+  `padding 0xFF`
+- Confirmed examples:
+  `W0PWR   = 57 30 50 57 52 FF FF FF`
+  `TEST123 = 54 45 53 54 31 32 33 FF`
+- Proven STM32 write path:
+  `X 01` prepare 4 KB sector
+  `X 02` overlay bytes at `0x00E0`
+  `X 03` erase/program sector
+- Required guardrails:
+  `fresh radio read`
+  `saved backup`
+  `ASCII-only validation`
+  `max 8 characters`
+  `pad unused bytes with 0xFF, never 0x00`
+  `write only 0x00E0-0x00E7`
+  `immediate readback verify`
+  `mark session stale after success and require another fresh read before any further write`
+
+### 8. DMR ID candidate stays read-only
+- `0x00E8-0x00EB` matched known DMR ID `3214246` as packed decimal byte order:
+  `03 21 42 46 -> 03214246 -> 3214246`
+- This is useful as an inspector result only for now
+- Do not enable DMR ID writes until confirmed across multiple radios and multiple codeplugs
+
 ### Current Safe Status
 
 - `docs/cps/test.html`:
   hardware-proven boot text write
   hardware-proven boot mode write
+  hardware-proven callsign write
+  DMR ID inspector remains read-only
 - `docs/cps/index.html`:
   read/open/save/edit only
   full radio write disabled
@@ -76,10 +108,15 @@
 ### Next Steps
 
 - Add a verbose/debug logging toggle to reduce normal console spam
-- Continue testing boot text and boot mode isolated writes
+- Continue testing boot text, boot mode, and callsign isolated writes
+- Run callsign edge cases:
+  `A -> 41 FF FF FF FF FF FF FF`
+  `full 8-character callsign -> no padding`
+  `revert to original callsign and verify`
 - Compare picture/text backups to document changed bytes
-- Later integrate boot text and boot mode controls into main CPS with the same guardrails
+- Later integrate boot text, boot mode, and callsign controls into main CPS with the same guardrails
 - Do not enable full-codeplug write until separately validated
+- Do not enable DMR ID writes until the storage format is confirmed across multiple radios/codeplugs
 
 ## Session 1 — 2026-04-24: CMake Migration & CI
 
