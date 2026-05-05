@@ -164,10 +164,12 @@
           </label>
           <div class="test-actions">
             <button class="btn-sm btn-sm-read" id="read-btn" type="button">Read from Radio</button>
+            <button class="btn-sm btn-sm-outline" id="load-file-btn" type="button">Load Codeplug File</button>
             <button class="btn-sm btn-sm-outline" id="save-backup-btn" type="button" disabled>Save Backup</button>
             <button class="btn-sm btn-sm-write" id="write-btn" type="button" disabled>Write Boot Text Only</button>
             <button class="btn-sm btn-sm-outline" id="verify-btn" type="button" disabled>Read Back &amp; Verify</button>
           </div>
+          <input id="file-input" type="file" accept=".g77" hidden>
           <p class="test-meta" id="session-meta">No radio read yet.</p>
           <div class="write-progress-wrap" id="progress-wrap">
             <div class="write-progress-bar">
@@ -318,8 +320,8 @@
       <div class="section-card">
         <div class="section-card-header"><h3>Test Checklist</h3></div>
         <div class="section-card-body">
-          <p class="test-meta">1. Read from Radio.</p>
-          <p class="test-meta">2. Save Backup from that same fresh read.</p>
+          <p class="test-meta">1. Read from Radio, or load a <code>.g77</code> file for read-only identity inspection.</p>
+          <p class="test-meta">2. Save Backup from that same fresh radio read before any hardware write.</p>
           <p class="test-meta">3. Change either the boot text, the boot display mode, or the callsign. Keep DMR identity-area inspection read-only while locating the actual DMR ID bytes.</p>
           <p class="test-meta">4. Run exactly one isolated write button and wait for the immediate readback verify to pass.</p>
           <p class="test-meta">5. Run Read Back &amp; Verify after text changes, then save a fresh post-write backup if needed.</p>
@@ -358,6 +360,7 @@
           <p class="test-meta">Callsign write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x00E0</code>, <code>X 02</code> overlay exactly 8 bytes at <code>0x00E0-0x00E7</code>, then <code>X 03</code> erase/program the sector. Immediate readback must match the FF-padded ASCII callsign bytes exactly.</p>
           <p class="test-meta">Callsign guardrails: fresh Read from Radio required, Save Backup required, ASCII-only validation, max 8 characters, pad with <code>0xFF</code> and never <code>0x00</code>, write only <code>0x00E0-0x00E7</code>, and mark the session stale after success.</p>
           <p class="test-meta">Identity inspector: <code>0x00E0-0x00E7</code> is treated as callsign ASCII, FF-padded. <code>0x00E8-0x00EB</code> matched known DMR ID <code>3214246</code> as packed decimal byte order: <code>03 21 42 46 -> 03214246 -> 3214246</code>.</p>
+          <p class="test-meta">Codeplug file loads are inspection-only. Loading a <code>.g77</code> file must not enable any write action until a fresh Read from Radio and Save Backup are completed.</p>
           <p class="test-meta">DMR ID remains read-only here until that storage format is confirmed across multiple radios and multiple codeplugs. Do not enable DMR ID writes yet.</p>
           <p class="test-meta">Do not enable full-codeplug write here. This page remains an isolated hardware write lab.</p>
         </div>
@@ -407,6 +410,8 @@
   let busy = false;
 
   const readBtn = document.getElementById('read-btn');
+  const loadFileBtn = document.getElementById('load-file-btn');
+  const fileInputEl = document.getElementById('file-input');
   const saveBackupBtn = document.getElementById('save-backup-btn');
   const writeBtn = document.getElementById('write-btn');
   const verifyBtn = document.getElementById('verify-btn');
@@ -815,6 +820,7 @@
     const bootModeSelected = selectedBootMode === BOOT_DISPLAY_MODE_PICTURE || selectedBootMode === BOOT_DISPLAY_MODE_TEXT;
 
     readBtn.disabled = busy;
+    loadFileBtn.disabled = busy;
     saveBackupBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead;
     verifyBtn.disabled = busy || !hasCodeplug;
     writeBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !asciiOk;
@@ -888,6 +894,18 @@
     refreshButtons();
   }
 
+  async function loadCodeplugFile(file) {
+    const name = String(file?.name || '');
+    if (!/\.g77$/i.test(name)) {
+      throw new Error('Unsupported file type. Please choose a .g77 codeplug backup.');
+    }
+    const buffer = await file.arrayBuffer();
+    sessionFreshRadioRead = false;
+    sessionBackupSaved = false;
+    setLoadedCodeplug(buffer, name, { syncEditor: true, syncCallsign: true });
+    setStatus('Codeplug file loaded for read-only inspection. Read from Radio and save a backup before any hardware write.', 'ok');
+  }
+
   async function readFromRadio({ syncEditor = true, statusPrefix = 'Reading codeplug backup…' } = {}) {
     busy = true;
     resetProgress();
@@ -921,6 +939,31 @@
       } else {
         setStatus(`Read failed: ${err.message}`, 'err');
       }
+    }
+  });
+
+  loadFileBtn.addEventListener('click', () => {
+    if (busy) return;
+    fileInputEl.click();
+  });
+
+  fileInputEl.addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    busy = true;
+    resetProgress();
+    setStatus('Loading codeplug file…', 'muted');
+    refreshButtons();
+
+    try {
+      await loadCodeplugFile(file);
+    } catch (err) {
+      setStatus(`File load failed: ${err.message}`, 'err');
+    } finally {
+      event.target.value = '';
+      busy = false;
+      refreshButtons();
     }
   });
 
