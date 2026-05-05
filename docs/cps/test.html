@@ -71,6 +71,19 @@
       font-size: 13px;
       margin: 0;
     }
+    .test-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      font-size: 14px;
+      user-select: none;
+    }
+    .test-toggle input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+    }
     .boot-mode-control {
       display: grid;
       gap: 8px;
@@ -145,6 +158,10 @@
       <div class="section-card">
         <div class="section-card-header"><h3>Workflow</h3></div>
         <div class="section-card-body">
+          <label class="test-toggle" for="debug-toggle">
+            <input id="debug-toggle" type="checkbox">
+            <span>Debug protocol logging</span>
+          </label>
           <div class="test-actions">
             <button class="btn-sm btn-sm-read" id="read-btn" type="button">Read from Radio</button>
             <button class="btn-sm btn-sm-outline" id="save-backup-btn" type="button" disabled>Save Backup</button>
@@ -398,6 +415,7 @@
   const progressLabel = document.getElementById('progress-label');
   const statusEl = document.getElementById('status');
   const sessionMetaEl = document.getElementById('session-meta');
+  const debugToggleEl = document.getElementById('debug-toggle');
   const bootDisplayModeEl = document.getElementById('boot-display-mode');
   const bootDisplayRawEl = document.getElementById('boot-display-raw');
   const bootModeSelectEl = document.getElementById('boot-mode-select');
@@ -428,6 +446,24 @@
     const d = new Date();
     const p = n => String(n).padStart(2, '0');
     return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  }
+
+  function setDebugProtocolLogging(enabled, { logChange = false } = {}) {
+    const nextValue = !!enabled;
+    if (typeof window.cprdSetDebugEnabled === 'function') {
+      window.cprdSetDebugEnabled(nextValue, { logChange });
+    } else {
+      window.CLEARDMR_DEBUG = nextValue;
+      try {
+        localStorage.setItem('cleardmr_debug', nextValue ? 'true' : 'false');
+      } catch (_) {}
+      if (logChange) {
+        console.info(`[CPRD] debug protocol logging ${nextValue ? 'enabled' : 'disabled'}`);
+      }
+    }
+    if (debugToggleEl) {
+      debugToggleEl.checked = !!window.CLEARDMR_DEBUG;
+    }
   }
 
   function setStatus(msg, cls = '') {
@@ -900,6 +936,13 @@
   knownDmrIdInputEl.addEventListener('input', () => {
     updateIdentityCandidateComparison();
   });
+
+  if (debugToggleEl) {
+    debugToggleEl.checked = !!window.CLEARDMR_DEBUG;
+    debugToggleEl.addEventListener('change', () => {
+      setDebugProtocolLogging(debugToggleEl.checked, { logChange: true });
+    });
+  }
 
   async function cpwrWriteBootDisplayMode(modeValue, onProgress) {
     if (!navigator.serial) {

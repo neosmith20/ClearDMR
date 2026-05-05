@@ -73,13 +73,29 @@ const CPWR_CODEPLUG_SEGMENTS = [
 
 // SerialAccumulator is defined in radio-read.js (loaded first); shared via global scope.
 
+function cpwrDebugLog(...args) {
+  const enabled = typeof cprdIsDebugEnabled === 'function'
+    ? cprdIsDebugEnabled()
+    : !!window.CLEARDMR_DEBUG;
+  if (!enabled) return;
+  console.log(...args);
+}
+
+function cpwrLogRaw(direction, bytes, label = '') {
+  const prefix = label ? `[CPWR] ${direction} ${label}` : `[CPWR] ${direction}`;
+  cpwrDebugLog(prefix, {
+    length: bytes?.length ?? 0,
+    hex: cprdHexAll(bytes),
+  });
+}
+
 // Send a write request, log the full TX frame, and verify the exact ACK bytes.
 // Bench work for boot text writes depends on seeing both the outgoing X request
 // and the returned ACK pair in the console log.
 async function cpwrRequest(writer, acc, bytes, context, expectedPrefix = [bytes[0], bytes[1]]) {
   await cprdWriteBytes(writer, bytes, context);
   const first = await acc.readExact(1);
-  cprdLogRaw('RX', first, `${context} ack byte 1`);
+  cpwrLogRaw('RX', first, `${context} ack byte 1`);
   if (first[0] !== expectedPrefix[0]) {
     const where = context ? ` (${context})` : '';
     throw new Error(
@@ -91,7 +107,7 @@ async function cpwrRequest(writer, acc, bytes, context, expectedPrefix = [bytes[
   }
   if (expectedPrefix.length > 1) {
     const second = await acc.readExact(1);
-    cprdLogRaw('RX', second, `${context} ack byte 2`);
+    cpwrLogRaw('RX', second, `${context} ack byte 2`);
     if (second[0] !== expectedPrefix[1]) {
       const where = context ? ` (${context})` : '';
       throw new Error(

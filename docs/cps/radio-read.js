@@ -45,6 +45,7 @@ const CPRD_MODE_READ_RADIO_INFO = 0x09;
 const CPRD_BUFFER_DATE_CUTOFF   = 20211002;
 const CPRD_STM32_RADIO_TYPES    = new Set([5, 6, 7, 8, 9, 10]);
 const CPRD_CONNECT_TIMEOUT_MS   = 1000;
+const CLEARDMR_DEBUG_STORAGE_KEY = 'cleardmr_debug';
 const CPRD_CODEPLUG_SEGMENTS = [
   { fileStart: 0x00080, fileEnd: 0x06000, area: 1, radioStart: 0x00080, label: 'Codeplug block 1' },
   { fileStart: 0x06000, fileEnd: 0x0604A, area: 1, radioStart: 0x06000, label: 'Last used channels' },
@@ -52,6 +53,42 @@ const CPRD_CODEPLUG_SEGMENTS = [
   { fileStart: 0x0B000, fileEnd: 0x1EE60, area: 1, radioStart: 0x9B000, label: 'Extended codeplug' },
   { fileStart: 0x1EE60, fileEnd: 0x20000, area: 1, radioStart: 0x20000, label: 'OpenGD77 custom data' },
 ];
+
+function cprdReadStoredDebugFlag() {
+  try {
+    return localStorage.getItem(CLEARDMR_DEBUG_STORAGE_KEY) === 'true';
+  } catch (_) {
+    return false;
+  }
+}
+
+function cprdIsDebugEnabled() {
+  return !!window.CLEARDMR_DEBUG;
+}
+
+function cprdSetDebugEnabled(enabled, options = {}) {
+  const { logChange = false } = options;
+  const nextValue = !!enabled;
+  window.CLEARDMR_DEBUG = nextValue;
+  try {
+    localStorage.setItem(CLEARDMR_DEBUG_STORAGE_KEY, nextValue ? 'true' : 'false');
+  } catch (_) {}
+  if (logChange) {
+    console.info(`[CPRD] debug protocol logging ${nextValue ? 'enabled' : 'disabled'}`);
+  }
+  return nextValue;
+}
+
+function cprdDebugLog(...args) {
+  if (!cprdIsDebugEnabled()) return;
+  console.log(...args);
+}
+
+window.CLEARDMR_DEBUG = cprdReadStoredDebugFlag();
+window.cprdIsDebugEnabled = cprdIsDebugEnabled;
+window.cprdSetDebugEnabled = cprdSetDebugEnabled;
+window.cprdDebugLog = cprdDebugLog;
+window.CLEARDMR_DEBUG_STORAGE_KEY = CLEARDMR_DEBUG_STORAGE_KEY;
 
 window.__CPRD_VERSION__ = CPRD_VERSION;
 console.info(`[CPRD] loaded ${CPRD_VERSION}`);
@@ -73,7 +110,7 @@ function cprdHexAll(data) {
 
 function cprdLogRaw(direction, bytes, label = '') {
   const prefix = label ? `[CPRD] ${direction} ${label}` : `[CPRD] ${direction}`;
-  console.log(prefix, {
+  cprdDebugLog(prefix, {
     length: bytes?.length ?? 0,
     hex: cprdHexAll(bytes),
   });
@@ -201,10 +238,10 @@ async function cprdOpenSerialSession(filters, tag, options = {}) {
             break: false,
           });
         } catch (signalErr) {
-          console.debug('[CPRD] setSignals not applied', signalErr);
+          cprdDebugLog('[CPRD] setSignals not applied', signalErr);
         }
       }
-      console.log(`[CPRD] port open success (${tag})`, {
+      cprdDebugLog(`[CPRD] port open success (${tag})`, {
         port: cprdDescribePort(port),
         baudRate: 115200,
         dataBits: 8,
@@ -247,7 +284,7 @@ function cprdFnv1a32(data) {
 }
 
 function cprdLogBlockSummary(area, address, data, label = 'block summary') {
-  console.log(`[CPRD] ${label}`, {
+  cprdDebugLog(`[CPRD] ${label}`, {
     area,
     address: `0x${address.toString(16).toUpperCase().padStart(5, '0')}`,
     length: data.length,
@@ -258,7 +295,7 @@ function cprdLogBlockSummary(area, address, data, label = 'block summary') {
 }
 
 function cprdLogBufferSummary(data, label = 'buffer summary') {
-  console.log(`[CPRD] ${label}`, {
+  cprdDebugLog(`[CPRD] ${label}`, {
     length: data.length,
     fnv1a32: cprdFnv1a32(data),
     first8: cprdHexBytes(data, 8),
@@ -301,7 +338,7 @@ function cprdLogReadResponseDiagnostics(raw, address, requestedLength, label = '
     ? ((raw[0] | (raw[1] << 8) | (raw[2] << 16) | ((raw[3] << 24) >>> 0)) >>> 0)
     : null;
 
-  console.log(`[CPRD] ${label}`, {
+  cprdDebugLog(`[CPRD] ${label}`, {
     rxTotalLength: raw.length,
     first32: cprdHexAll(raw.subarray(0, 32)),
     len16be,
@@ -353,7 +390,7 @@ async function cprdReadRFrame(acc, context, options = {}) {
     }
 
     if (b[0] === CPRD_READ_BYTE) {
-      console.log('[CPRD] R sync byte found', {
+      cprdDebugLog('[CPRD] R sync byte found', {
         context,
         syncByte: `0x${CPRD_READ_BYTE.toString(16).toUpperCase()}`,
         discardedBytes: discarded.length,
@@ -371,7 +408,7 @@ async function cprdReadRFrame(acc, context, options = {}) {
         timeoutLabel: `${context} R frame length`,
       });
       const len = (lenBytes[0] << 8) | lenBytes[1];
-      console.log('[CPRD] R frame length', {
+      cprdDebugLog('[CPRD] R frame length', {
         context,
         frameLength: len,
         expectedLength,
@@ -587,7 +624,7 @@ async function cprdClearInputBuffer(acc, options = {}) {
     cprdLogRaw('DROP', chunk, `${label} drain`);
   }
 
-  console.log('[CPRD] input drain complete', { label, drained });
+  cprdDebugLog('[CPRD] input drain complete', { label, drained });
 }
 
 async function cprdObserveIncoming(acc, options = {}) {
@@ -620,9 +657,9 @@ async function cprdObserveIncoming(acc, options = {}) {
       }
       acc.prependPending(merged);
     }
-    console.log('[CPRD] observe complete', { label, chunks: chunks.length, bytes: total, preserved: preserve });
+    cprdDebugLog('[CPRD] observe complete', { label, chunks: chunks.length, bytes: total, preserved: preserve });
   } else {
-    console.log('[CPRD] observe complete', { label, chunks: 0, bytes: 0, preserved: preserve });
+    cprdDebugLog('[CPRD] observe complete', { label, chunks: 0, bytes: 0, preserved: preserve });
   }
 }
 
@@ -689,7 +726,7 @@ async function cprdSendCommand(writer, acc, commandNumber, options = {}) {
   const txHex = Array.from(req.subarray(0, len), b => `0x${b.toString(16).toUpperCase().padStart(2, '0')}`);
   const session = writer && writer.__cprdSession;
   if (logTx || (session && session.commandCount === 0)) {
-    console.log(session && session.commandCount === 0 ? '[CPRD] first command bytes sent' : '[CPRD] command bytes sent', {
+    cprdDebugLog(session && session.commandCount === 0 ? '[CPRD] first command bytes sent' : '[CPRD] command bytes sent', {
       command: `0x${commandNumber.toString(16).toUpperCase()}`,
       bytes: txHex,
       context: context || undefined,
@@ -704,7 +741,7 @@ async function cprdSendCommand(writer, acc, commandNumber, options = {}) {
   });
   const ackHexList = Array.from(ack, b => `0x${b.toString(16).toUpperCase().padStart(2, '0')}`);
   if (logAck || (session && session.commandCount === 0)) {
-    console.log(session && session.commandCount === 0 ? '[CPRD] first ack bytes received' : '[CPRD] raw ack bytes received', {
+    cprdDebugLog(session && session.commandCount === 0 ? '[CPRD] first ack bytes received' : '[CPRD] raw ack bytes received', {
       command: `0x${commandNumber.toString(16).toUpperCase()}`,
       ack: ackHexList,
       context: context || undefined,
@@ -765,7 +802,7 @@ async function cprdNativeProbeCommand(writer, acc, commandNumber, {
   requireAck = true,
 } = {}) {
   const req = cprdBuildCommandBytes(commandNumber);
-  console.log(`[CPRD] ${stageName}`, { command: `0x${commandNumber.toString(16).toUpperCase()}` });
+  cprdDebugLog(`[CPRD] ${stageName}`, { command: `0x${commandNumber.toString(16).toUpperCase()}` });
   await cprdWriteBytes(writer, req, stageName);
   await cprdDelay(50);
 
@@ -782,7 +819,7 @@ async function cprdNativeProbeCommand(writer, acc, commandNumber, {
   }
 
   const ackList = Array.from(response, b => `0x${b.toString(16).toUpperCase().padStart(2, '0')}`);
-  console.log('[CPRD] received ack bytes', {
+  cprdDebugLog('[CPRD] received ack bytes', {
     stageName,
     ack: ackList,
   });
@@ -797,7 +834,7 @@ async function cprdPrimeRadioConnection(writer, acc, { stealth = false } = {}) {
   // STM32 hardware the radio is already in USB_MODE_CPS, and sending those
   // optional commands before the first R request proved capable of hiding the
   // real radio-info response.
-  console.log('[CPRD] skipping C init commands before USB CDC read');
+  cprdDebugLog('[CPRD] skipping C init commands before USB CDC read');
 }
 
 async function cprdReadRadioInfo(writer, acc, { stealth = false } = {}) {
@@ -805,7 +842,7 @@ async function cprdReadRadioInfo(writer, acc, { stealth = false } = {}) {
   const req = new Uint8Array(8);
   req[0] = CPRD_READ_BYTE;
   req[1] = CPRD_MODE_READ_RADIO_INFO;
-  console.log('[CPRD] radio info request bytes', { hex: cprdHexAll(req) });
+  cprdDebugLog('[CPRD] radio info request bytes', { hex: cprdHexAll(req) });
   await cprdWriteBytes(writer, req, 'radio info request');
 
   try {
@@ -818,14 +855,14 @@ async function cprdReadRadioInfo(writer, acc, { stealth = false } = {}) {
       maxLength: 64,
     });
 
-    console.log('[CPRD] radio info response', {
+    cprdDebugLog('[CPRD] radio info response', {
       format: 'R-framed',
       length,
       payloadHex: cprdHexAll(payload),
     });
 
     const info = cprdParseRadioInfo(payload);
-    console.log('[CPRD] radio info decoded', {
+    cprdDebugLog('[CPRD] radio info decoded', {
       structVersion: info.structVersion,
       radioType: info.radioType,
       gitRevision: info.gitRevision,
@@ -857,13 +894,13 @@ async function cprdReadRadioInfo(writer, acc, { stealth = false } = {}) {
 async function cprdBeginCodeplugReadTask(writer, acc) {
   void writer;
   void acc;
-  console.log('[CPRD] begin read task: serial read protocol only');
+  cprdDebugLog('[CPRD] begin read task: serial read protocol only');
 }
 
 async function cprdEndCodeplugReadTask(writer, acc) {
   void writer;
   void acc;
-  console.log('[CPRD] end read task: serial read protocol only');
+  cprdDebugLog('[CPRD] end read task: serial read protocol only');
 }
 
 async function cprdRequest(writer, acc, area, address, length, interReadDelayMs) {
@@ -871,7 +908,7 @@ async function cprdRequest(writer, acc, area, address, length, interReadDelayMs)
 
   const req = cprdBuildReadRequestBytes(area, address, length);
   const addrHex = `0x${address.toString(16).toUpperCase().padStart(5, '0')}`;
-  console.log('[CPRD] read request bytes', {
+  cprdDebugLog('[CPRD] read request bytes', {
     format: 'R area addr_be32 len_be16',
     area,
     address: addrHex,
@@ -913,7 +950,7 @@ async function cprdReadChunk(writer, acc, area, address, length, interReadDelayM
           `Expected ${length} byte(s), received ${data.length}.`
         );
       }
-      console.debug('[CPRD] response', {
+      cprdDebugLog('[CPRD] response', {
         version: CPRD_VERSION,
         area,
         address: `0x${address.toString(16).toUpperCase().padStart(5, '0')}`,
@@ -924,7 +961,7 @@ async function cprdReadChunk(writer, acc, area, address, length, interReadDelayM
       return data;
     }
   }
-  console.debug('[CPRD] response', {
+  cprdDebugLog('[CPRD] response', {
     version: CPRD_VERSION,
     area,
     address: `0x${address.toString(16).toUpperCase().padStart(5, '0')}`,
@@ -958,7 +995,7 @@ async function cpreadReadCodeplug(onProgress, options = {}) {
     const { writer, acc } = session;
 
     acc.resetState({ label: 'cpread session start', clearRecent: true, logDrop: false });
-    console.log('[CPRD] read session reset', {
+    cprdDebugLog('[CPRD] read session reset', {
       rxBufferLength: acc.getPendingLength(),
       recentRxBytes: acc.getRecentRxByteCount(),
     });
@@ -1057,12 +1094,12 @@ async function cprawDumpRange(options, onProgress) {
     acc.resetState({ label: 'cpraw session start', clearRecent: true, logDrop: false });
     await cprdPrimeRadioConnection(writer, acc);
     const radioInfo = await cprdReadRadioInfo(writer, acc);
-    console.log('[CPRD] raw dump radio info', radioInfo);
+    cprdDebugLog('[CPRD] raw dump radio info', radioInfo);
 
     for (let offset = 0, chunkIndex = 0; offset < length; offset += chunkSize, chunkIndex++) {
       const len = Math.min(chunkSize, length - offset);
       const address = (start + offset) >>> 0;
-      console.debug('[CPRD] request', {
+      cprdDebugLog('[CPRD] request', {
         version: CPRD_VERSION,
         area,
         address: `0x${address.toString(16).toUpperCase().padStart(5, '0')}`,
