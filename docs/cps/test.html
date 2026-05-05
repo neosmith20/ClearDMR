@@ -229,23 +229,45 @@
           <div class="section-card-body">
             <div class="test-current">
               <div class="test-current-row">
-                <span class="field-label">Raw @ 0x00E0</span>
-                <div class="test-current-value" id="identity-focus-raw">—</div>
+                <span class="field-label">Callsign Raw @ 0x00E0-0x00E7</span>
+                <div class="test-current-value" id="identity-callsign-raw">—</div>
               </div>
               <div class="test-current-row">
-                <span class="field-label">ASCII @ 0x00E0</span>
-                <div class="test-current-value" id="identity-focus-ascii">—</div>
+                <span class="field-label">Callsign ASCII @ 0x00E0-0x00E7</span>
+                <div class="test-current-value" id="identity-callsign-ascii">—</div>
               </div>
               <div class="test-current-row">
-                <span class="field-label">Little-endian uint32 @ 0x00E0</span>
-                <div class="test-current-value" id="identity-focus-u32">—</div>
+                <span class="field-label">Candidate Raw @ 0x00E8-0x00EB</span>
+                <div class="test-current-value" id="identity-candidate-raw">—</div>
               </div>
+              <div class="test-current-row">
+                <span class="field-label">uint32 Little-endian @ 0x00E8</span>
+                <div class="test-current-value" id="identity-candidate-u32-le">—</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">uint32 Big-endian @ 0x00E8</span>
+                <div class="test-current-value" id="identity-candidate-u32-be">—</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">Packed Decimal Candidates @ 0x00E8</span>
+                <div class="test-current-value" id="identity-candidate-bcd">—</div>
+              </div>
+            </div>
+            <div class="field-group" style="margin-top: 12px;">
+              <div class="field-row">
+                <span class="field-label">Known DMR ID</span>
+                <input type="number" id="known-dmr-id-input" class="field-input" min="1" max="16776415" step="1" placeholder="Compare against radio/CPS DMR ID">
+              </div>
+            </div>
+            <div class="test-current-row" style="margin-top: 12px;">
+              <span class="field-label">Candidate Comparison</span>
+              <div class="test-current-value" id="identity-candidate-compare">Enter the known DMR ID to compare candidate decodes.</div>
             </div>
             <div class="test-current-row" style="margin-top: 12px;">
               <span class="field-label">0x00D0-0x0100 Inspector</span>
               <div class="test-current-value test-dump" id="identity-dump">—</div>
             </div>
-            <p class="write-status muted" id="identity-status">Read the radio to inspect bytes around 0x00E0.</p>
+            <p class="write-status muted" id="identity-status">Read the radio to inspect callsign bytes at 0x00E0 and the DMR ID candidate at 0x00E8.</p>
           </div>
         </div>
       </div>
@@ -270,7 +292,8 @@
           <p class="test-meta">Read responses: every response is treated as a strict <code>R</code>-framed packet. The reader sync-scans for <code>0x52</code>, logs and discards any pre-sync bytes, then reads the big-endian payload length and exact payload.</p>
           <p class="test-meta">Boot text write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7540</code>, <code>X 02</code> overlay the 32 boot-text bytes, then <code>X 03</code> erase/program the sector. <code>X 04</code> must not be used on STM32 because it can ACK without modifying flash.</p>
           <p class="test-meta">Boot display mode write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7518</code>, <code>X 02</code> overlay exactly one byte at <code>0x7518</code>, then <code>X 03</code> erase/program the sector. Immediate readback must return <code>0x00</code> for Picture or <code>0x01</code> for Text.</p>
-          <p class="test-meta">Identity inspector: this page now treats <code>0x00D0-0x0100</code> as read-only research output. It shows the bytes in hex and ASCII so the actual DMR ID storage can be identified by comparing the dump with the radio&rsquo;s known programmed DMR ID.</p>
+          <p class="test-meta">Identity inspector: <code>0x00E0-0x00E7</code> is treated as callsign ASCII, FF-padded. <code>0x00E8-0x00EB</code> is exposed as a read-only DMR ID candidate with little-endian, big-endian, and packed-decimal decode views.</p>
+          <p class="test-meta">DMR write remains disabled here until one of those candidate decodes matches the radio&rsquo;s known programmed DMR ID and the storage format is hardware-proven.</p>
         </div>
       </div>
     </div>
@@ -294,13 +317,17 @@
   const BOOT_DISPLAY_MODE_PICTURE = 0x00;
   const BOOT_DISPLAY_MODE_TEXT = 0x01;
   const BOOT_TEXT_OFFSET = 0x7540;
-  const IDENTITY_FOCUS_OFFSET = 0x00E0;
-  const IDENTITY_FOCUS_LENGTH = 4;
+  const IDENTITY_CALLSIGN_OFFSET = 0x00E0;
+  const IDENTITY_CALLSIGN_LENGTH = 8;
+  const IDENTITY_DMR_CANDIDATE_OFFSET = 0x00E8;
+  const IDENTITY_DMR_CANDIDATE_LENGTH = 4;
   const IDENTITY_INSPECTOR_START = 0x00D0;
   const IDENTITY_INSPECTOR_END = 0x0100;
   const TEST_BOOT_TEXT_LINE_LEN = 16;
   const TEST_BOOT_TEXT_TOTAL_LEN = 32;
   const CODEPLUG_SIZE = 0x20000;
+  const DMR_ID_MIN = 1;
+  const DMR_ID_MAX = 16776415;
   const ASCII_RE = /^[\x20-\x7E]*$/;
   const TEST_SERIAL_FILTERS = [{ usbVendorId: 0x1FC9, usbProductId: 0x0094 }];
   const TEST_WRITE_BYTE = 0x58;
@@ -332,9 +359,14 @@
   const editLine1El = document.getElementById('edit-line1');
   const editLine2El = document.getElementById('edit-line2');
   const editorStatusEl = document.getElementById('editor-status');
-  const identityFocusRawEl = document.getElementById('identity-focus-raw');
-  const identityFocusAsciiEl = document.getElementById('identity-focus-ascii');
-  const identityFocusU32El = document.getElementById('identity-focus-u32');
+  const identityCallsignRawEl = document.getElementById('identity-callsign-raw');
+  const identityCallsignAsciiEl = document.getElementById('identity-callsign-ascii');
+  const identityCandidateRawEl = document.getElementById('identity-candidate-raw');
+  const identityCandidateU32LeEl = document.getElementById('identity-candidate-u32-le');
+  const identityCandidateU32BeEl = document.getElementById('identity-candidate-u32-be');
+  const identityCandidateBcdEl = document.getElementById('identity-candidate-bcd');
+  const knownDmrIdInputEl = document.getElementById('known-dmr-id-input');
+  const identityCandidateCompareEl = document.getElementById('identity-candidate-compare');
   const identityDumpEl = document.getElementById('identity-dump');
   const identityStatusEl = document.getElementById('identity-status');
 
@@ -459,12 +491,116 @@
     return new DataView(arrayBuffer).getUint32(offset, true);
   }
 
+  function readUint32BEAt(arrayBuffer, offset) {
+    if (arrayBuffer.byteLength < CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${CODEPLUG_SIZE}.`);
+    }
+    return new DataView(arrayBuffer).getUint32(offset, false);
+  }
+
+  function trimAsciiFF(bytes) {
+    let end = bytes.length;
+    while (end > 0 && bytes[end - 1] === 0xFF) {
+      end -= 1;
+    }
+    return formatAsciiBytes(bytes.slice(0, end));
+  }
+
+  function decodePackedDecimalVariant(bytes) {
+    let digits = '';
+    for (const value of bytes) {
+      const hi = (value >> 4) & 0x0F;
+      const lo = value & 0x0F;
+      if (hi > 9 || lo > 9) {
+        return { applicable: false, digits: '', numeric: null };
+      }
+      digits += String(hi) + String(lo);
+    }
+    const normalized = digits.replace(/^0+/, '') || '0';
+    return {
+      applicable: true,
+      digits,
+      numeric: Number.parseInt(normalized, 10),
+    };
+  }
+
+  function decodePackedDecimalCandidates(bytes) {
+    const stored = decodePackedDecimalVariant(bytes);
+    const reversed = decodePackedDecimalVariant(Uint8Array.from(bytes).reverse());
+    return { stored, reversed };
+  }
+
+  function formatPackedDecimalCandidates(decoded) {
+    const parts = [];
+    if (decoded.stored.applicable) {
+      parts.push(`${decoded.stored.digits} (byte order)`);
+    }
+    if (decoded.reversed.applicable) {
+      parts.push(`${decoded.reversed.digits} (reversed bytes)`);
+    }
+    return parts.length ? parts.join(' | ') : 'Not valid packed decimal';
+  }
+
+  function updateIdentityCandidateComparison() {
+    if (!loadedCodeplug) {
+      identityCandidateCompareEl.textContent = 'Read the radio first, then compare candidate decodes against the known DMR ID.';
+      return;
+    }
+
+    const rawValue = (knownDmrIdInputEl.value || '').trim();
+    if (!rawValue) {
+      identityCandidateCompareEl.textContent = 'Enter the known DMR ID to compare candidate decodes.';
+      return;
+    }
+
+    if (!/^\d+$/.test(rawValue)) {
+      identityCandidateCompareEl.textContent = 'Known DMR ID must be a whole decimal number.';
+      return;
+    }
+
+    const knownValue = Number.parseInt(rawValue, 10);
+    if (knownValue < DMR_ID_MIN || knownValue > DMR_ID_MAX) {
+      identityCandidateCompareEl.textContent = `Known DMR ID must be between ${DMR_ID_MIN} and ${DMR_ID_MAX}.`;
+      return;
+    }
+
+    const buffer = loadedCodeplug.toArrayBuffer();
+    const candidateBytes = extractIdentityBytes(buffer, IDENTITY_DMR_CANDIDATE_OFFSET, IDENTITY_DMR_CANDIDATE_LENGTH);
+    const candidateLe = readUint32LEAt(buffer, IDENTITY_DMR_CANDIDATE_OFFSET);
+    const candidateBe = readUint32BEAt(buffer, IDENTITY_DMR_CANDIDATE_OFFSET);
+    const candidateBcd = decodePackedDecimalCandidates(candidateBytes);
+    const matches = [];
+
+    if (candidateLe === knownValue) matches.push('uint32 little-endian');
+    if (candidateBe === knownValue) matches.push('uint32 big-endian');
+    if (candidateBcd.stored.applicable && candidateBcd.stored.numeric === knownValue) {
+      matches.push('packed decimal (byte order)');
+    }
+    if (candidateBcd.reversed.applicable && candidateBcd.reversed.numeric === knownValue) {
+      matches.push('packed decimal (reversed bytes)');
+    }
+
+    if (matches.length) {
+      identityCandidateCompareEl.textContent = `Known DMR ID ${knownValue} matches ${matches.join(', ')}. Keep this page read-only until the storage format is confirmed across radios.`;
+      return;
+    }
+
+    identityCandidateCompareEl.textContent = `Known DMR ID ${knownValue} does not match the current uint32 or packed-decimal decodes for 0x00E8-0x00EB.`;
+  }
+
   function renderIdentityInspector(parser) {
     const buffer = parser.toArrayBuffer();
-    const focusBytes = extractIdentityBytes(buffer, IDENTITY_FOCUS_OFFSET, IDENTITY_FOCUS_LENGTH);
-    identityFocusRawEl.textContent = formatHexBytes(focusBytes);
-    identityFocusAsciiEl.textContent = `"${formatAsciiBytes(focusBytes)}"`;
-    identityFocusU32El.textContent = String(readUint32LEAt(buffer, IDENTITY_FOCUS_OFFSET));
+    const callsignBytes = extractIdentityBytes(buffer, IDENTITY_CALLSIGN_OFFSET, IDENTITY_CALLSIGN_LENGTH);
+    const candidateBytes = extractIdentityBytes(buffer, IDENTITY_DMR_CANDIDATE_OFFSET, IDENTITY_DMR_CANDIDATE_LENGTH);
+    const candidateBcd = decodePackedDecimalCandidates(candidateBytes);
+
+    identityCallsignRawEl.textContent = formatHexBytes(callsignBytes);
+    identityCallsignAsciiEl.textContent = `"${trimAsciiFF(callsignBytes)}"`;
+    identityCandidateRawEl.textContent = formatHexBytes(candidateBytes);
+    identityCandidateU32LeEl.textContent = String(readUint32LEAt(buffer, IDENTITY_DMR_CANDIDATE_OFFSET));
+    identityCandidateU32BeEl.textContent = String(readUint32BEAt(buffer, IDENTITY_DMR_CANDIDATE_OFFSET));
+    identityCandidateBcdEl.textContent = formatPackedDecimalCandidates(candidateBcd);
+    updateIdentityCandidateComparison();
 
     const dumpLength = (IDENTITY_INSPECTOR_END - IDENTITY_INSPECTOR_START) + 1;
     const dumpBytes = extractIdentityBytes(buffer, IDENTITY_INSPECTOR_START, dumpLength);
@@ -573,7 +709,7 @@
     }
 
     if (!hasCodeplug) {
-      setIdentityStatus('Read the radio to inspect bytes around 0x00E0.', 'muted');
+      setIdentityStatus('Read the radio to inspect callsign bytes at 0x00E0 and the DMR ID candidate at 0x00E8.', 'muted');
     } else {
       setIdentityStatus('Identity-area inspector refreshed from the loaded codeplug buffer.', 'ok');
     }
@@ -642,6 +778,10 @@
     sessionBackupSaved = true;
     setStatus('Backup saved. You may now write boot text only or boot mode only.', 'ok');
     refreshButtons();
+  });
+
+  knownDmrIdInputEl.addEventListener('input', () => {
+    updateIdentityCandidateComparison();
   });
 
   async function cpwrWriteBootDisplayMode(modeValue, onProgress) {
