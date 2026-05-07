@@ -190,7 +190,7 @@
             <button class="btn-sm btn-sm-write" id="write-btn" type="button" disabled>Write Boot Text Only</button>
             <button class="btn-sm btn-sm-outline" id="verify-btn" type="button" disabled>Read Back &amp; Verify</button>
           </div>
-          <input id="file-input" type="file" accept=".g77" hidden>
+          <input id="file-input" type="file" accept=".g77,.cdmr" hidden>
           <p class="test-meta" id="session-meta">No radio read yet.</p>
           <div class="write-progress-wrap" id="progress-wrap">
             <div class="write-progress-bar">
@@ -385,6 +385,9 @@
               <p class="preview-canvas-label">128×64 px shown at 2×</p>
             </div>
             <div class="test-actions" style="margin-top: 12px;">
+              <button class="btn-sm btn-sm-outline" id="export-melody-btn" type="button" disabled>Export Melody Block</button>
+              <button class="btn-sm btn-sm-outline" id="export-day-theme-btn" type="button" disabled>Export Day Theme Block</button>
+              <button class="btn-sm btn-sm-outline" id="export-night-theme-btn" type="button" disabled>Export Night Theme Block</button>
               <button class="btn-sm btn-sm-outline" id="export-boot-image-btn" type="button" disabled>Export Boot Image Block</button>
               <button class="btn-sm btn-sm-outline" id="export-custom-data-btn" type="button" disabled>Export Custom Data Area</button>
             </div>
@@ -406,7 +409,7 @@
               </div>
             </div>
             <div class="test-actions" style="margin-top: 12px;">
-              <button class="btn-sm btn-sm-outline" id="export-satellite-btn" type="button" disabled>Export Satellite Block</button>
+              <button class="btn-sm btn-sm-outline" id="export-satellite-btn" type="button" disabled>Export Satellite Keps Block</button>
             </div>
             <p class="write-status muted" id="satellite-status">Read the radio or load a codeplug file to inspect the satellite TLE custom-data block.</p>
           </div>
@@ -634,6 +637,9 @@
   const customDataBlocksEl = document.getElementById('custom-data-blocks');
   const bootImageBlockInfoEl = document.getElementById('boot-image-block-info');
   const bootImagePreviewCanvas = document.getElementById('boot-image-preview-canvas');
+  const exportMelodyBtn = document.getElementById('export-melody-btn');
+  const exportDayThemeBtn = document.getElementById('export-day-theme-btn');
+  const exportNightThemeBtn = document.getElementById('export-night-theme-btn');
   const exportBootImageBtn = document.getElementById('export-boot-image-btn');
   const exportCustomDataBtn = document.getElementById('export-custom-data-btn');
   const bootImageInspectorStatusEl = document.getElementById('boot-image-inspector-status');
@@ -1092,6 +1098,14 @@
       satellitePreviewEl.textContent = 'No satellite custom-data block found.';
       setSatelliteStatus('No satellite TLE custom-data block found in the loaded codeplug.', 'muted');
     }
+  }
+
+  function exportLoadedCustomDataBlock(type, filenamePrefix) {
+    if (!loadedCodeplug) return false;
+    const block = findCustomDataBlock(loadedCodeplug.toArrayBuffer(), type);
+    if (!block) return false;
+    downloadBlob(`${filenamePrefix}_${makeStamp()}.bin`, new Blob([block.data], { type: 'application/octet-stream' }));
+    return true;
   }
 
   async function cplabDumpRange(options, onProgress) {
@@ -1619,6 +1633,9 @@
     const dmrConfirmationOk = !!(storedDmr && storedDmr.applicable && !knownDmr.empty && !knownDmr.error && storedDmr.numeric === knownDmr.value);
     const dmrNewValueOk = !newDmr.empty && !newDmr.error;
     const dmrSameAsCurrent = !!(storedDmr && storedDmr.applicable && dmrNewValueOk && storedDmr.numeric === newDmr.value);
+    const melodyBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_MELODY) : null;
+    const dayThemeBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_THEME_DAY) : null;
+    const nightThemeBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_THEME_NIGHT) : null;
     const bootImageBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_IMAGE) : null;
     const satelliteBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_SATELLITE) : null;
 
@@ -1630,6 +1647,9 @@
     writeBootModeBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !bootModeSelected;
     writeCallsignBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !callsignAsciiOk;
     writeDmrIdBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !dmrConfirmationOk || !dmrNewValueOk || dmrSameAsCurrent;
+    exportMelodyBtn.disabled = busy || !melodyBlock;
+    exportDayThemeBtn.disabled = busy || !dayThemeBlock;
+    exportNightThemeBtn.disabled = busy || !nightThemeBlock;
     exportBootImageBtn.disabled = busy || !bootImageBlock;
     exportCustomDataBtn.disabled = busy || !hasCodeplug;
     exportSatelliteBtn.disabled = busy || !satelliteBlock;
@@ -1737,8 +1757,8 @@
 
   async function loadCodeplugFile(file) {
     const name = String(file?.name || '');
-    if (!/\.g77$/i.test(name)) {
-      throw new Error('Unsupported file type. Please choose a .g77 codeplug backup.');
+    if (!/\.(g77|cdmr)$/i.test(name)) {
+      throw new Error('Unsupported file type. Please choose a .g77 or .cdmr codeplug backup.');
     }
     const buffer = await file.arrayBuffer();
     sessionFreshRadioRead = false;
@@ -1785,6 +1805,7 @@
 
   loadFileBtn.addEventListener('click', () => {
     if (busy) return;
+    fileInputEl.value = '';
     fileInputEl.click();
   });
 
@@ -1817,11 +1838,23 @@
     refreshButtons();
   });
 
+  exportMelodyBtn.addEventListener('click', () => {
+    if (!exportLoadedCustomDataBlock(CUSTOM_DATA_TYPE_MELODY, 'boot_melody_block')) return;
+    setBootImageInspectorStatus('Boot melody block exported.', 'ok');
+  });
+
+  exportDayThemeBtn.addEventListener('click', () => {
+    if (!exportLoadedCustomDataBlock(CUSTOM_DATA_TYPE_THEME_DAY, 'day_theme_block')) return;
+    setBootImageInspectorStatus('Day theme block exported.', 'ok');
+  });
+
+  exportNightThemeBtn.addEventListener('click', () => {
+    if (!exportLoadedCustomDataBlock(CUSTOM_DATA_TYPE_THEME_NIGHT, 'night_theme_block')) return;
+    setBootImageInspectorStatus('Night theme block exported.', 'ok');
+  });
+
   exportBootImageBtn.addEventListener('click', () => {
-    if (!loadedCodeplug) return;
-    const block = findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_IMAGE);
-    if (!block) return;
-    downloadBlob(`boot_image_block_${makeStamp()}.bin`, new Blob([block.data], { type: 'application/octet-stream' }));
+    if (!exportLoadedCustomDataBlock(CUSTOM_DATA_TYPE_IMAGE, 'boot_image_block')) return;
     setBootImageInspectorStatus('Boot image block exported.', 'ok');
   });
 
@@ -1833,11 +1866,8 @@
   });
 
   exportSatelliteBtn.addEventListener('click', () => {
-    if (!loadedCodeplug) return;
-    const block = findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_SATELLITE);
-    if (!block) return;
-    downloadBlob(`satellite_tle_block_${makeStamp()}.bin`, new Blob([block.data], { type: 'application/octet-stream' }));
-    setSatelliteStatus('Satellite TLE block exported.', 'ok');
+    if (!exportLoadedCustomDataBlock(CUSTOM_DATA_TYPE_SATELLITE, 'satellite_keps_block')) return;
+    setSatelliteStatus('Satellite keps block exported.', 'ok');
   });
 
   inspectVoicePromptsBtn.addEventListener('click', async () => {
