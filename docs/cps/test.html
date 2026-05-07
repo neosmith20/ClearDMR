@@ -145,8 +145,8 @@
     <div class="test-shell">
       <div class="test-header">
         <div>
-          <h1 class="test-title">Boot Text, Mode, Callsign, and Identity Inspector</h1>
-          <p class="test-subtitle">Reads a full codeplug backup, then writes and verifies either the boot text block, the boot display mode, or the callsign field while exposing a read-only identity-area inspector for locating the actual DMR ID bytes.</p>
+          <h1 class="test-title">Boot Text, Mode, Callsign, and DMR ID Lab</h1>
+          <p class="test-subtitle">Reads a full codeplug backup, then writes and verifies either the boot text block, the boot display mode, the callsign field, or the confirmed packed-decimal DMR ID field while keeping the scope isolated to this hardware test page.</p>
         </div>
         <a href="index.html" class="btn-sm btn-sm-outline">Back to Main CPS</a>
       </div>
@@ -270,9 +270,13 @@
         </div>
 
         <div class="section-card">
-          <div class="section-card-header"><h3>Identity Area Inspector</h3></div>
+          <div class="section-card-header"><h3>Identity Area / DMR ID</h3></div>
           <div class="section-card-body">
             <div class="test-current">
+              <div class="test-current-row">
+                <span class="field-label">Current DMR ID @ 0x00E8</span>
+                <div class="test-current-value" id="current-dmr-id">—</div>
+              </div>
               <div class="test-current-row">
                 <span class="field-label">Callsign Raw @ 0x00E0-0x00E7</span>
                 <div class="test-current-value" id="identity-callsign-raw">—</div>
@@ -282,7 +286,7 @@
                 <div class="test-current-value" id="identity-callsign-ascii">—</div>
               </div>
               <div class="test-current-row">
-                <span class="field-label">Candidate Raw @ 0x00E8-0x00EB</span>
+                <span class="field-label">DMR ID Raw @ 0x00E8-0x00EB</span>
                 <div class="test-current-value" id="identity-candidate-raw">—</div>
               </div>
               <div class="test-current-row">
@@ -294,25 +298,37 @@
                 <div class="test-current-value" id="identity-candidate-u32-be">—</div>
               </div>
               <div class="test-current-row">
-                <span class="field-label">Packed Decimal Candidates @ 0x00E8</span>
+                <span class="field-label">Packed Decimal @ 0x00E8</span>
                 <div class="test-current-value" id="identity-candidate-bcd">—</div>
               </div>
             </div>
             <div class="field-group" style="margin-top: 12px;">
               <div class="field-row">
-                <span class="field-label">Known DMR ID</span>
-                <input type="number" id="known-dmr-id-input" class="field-input" min="1" max="16776415" step="1" placeholder="Compare against radio/CPS DMR ID">
+                <span class="field-label">Official Current DMR ID</span>
+                <input type="number" id="known-dmr-id-input" class="field-input" min="1" max="16776415" step="1" placeholder="Enter the current ID shown in official CPS/radio">
+              </div>
+              <div class="field-row">
+                <span class="field-label">New DMR ID</span>
+                <input type="number" id="edit-dmr-id" class="field-input" min="1" max="16776415" step="1" placeholder="1-16776415">
               </div>
             </div>
             <div class="test-current-row" style="margin-top: 12px;">
-              <span class="field-label">Candidate Comparison</span>
-              <div class="test-current-value" id="identity-candidate-compare">Enter the known DMR ID to compare candidate decodes.</div>
+              <span class="field-label">Confirmation Gate</span>
+              <div class="test-current-value" id="identity-candidate-compare">Enter the official current DMR ID to confirm that 0x00E8-0x00EB matches before writing.</div>
+            </div>
+            <div class="test-current-row" style="margin-top: 12px;">
+              <span class="field-label">Encoded Write Bytes @ 0x00E8-0x00EB</span>
+              <div class="test-current-value" id="dmr-id-encoded">Enter a new DMR ID to preview the packed-decimal bytes.</div>
             </div>
             <div class="test-current-row" style="margin-top: 12px;">
               <span class="field-label">0x00D0-0x0100 Inspector</span>
               <div class="test-current-value test-dump" id="identity-dump">—</div>
             </div>
-            <p class="write-status muted" id="identity-status">Read the radio to inspect callsign bytes at 0x00E0 and the DMR ID candidate at 0x00E8.</p>
+            <div class="test-actions" style="margin-top: 12px;">
+              <button class="btn-sm btn-sm-write" id="write-dmr-id-btn" type="button" disabled>Write DMR ID Only</button>
+            </div>
+            <p class="write-status muted" id="dmr-id-status">Read the radio, save a backup, confirm the current official DMR ID, then enter a new DMR ID.</p>
+            <p class="write-status muted" id="identity-status">Read the radio to inspect callsign bytes at 0x00E0 and the packed-decimal DMR ID bytes at 0x00E8.</p>
           </div>
         </div>
       </div>
@@ -322,7 +338,7 @@
         <div class="section-card-body">
           <p class="test-meta">1. Read from Radio, or load a <code>.g77</code> file for read-only identity inspection.</p>
           <p class="test-meta">2. Save Backup from that same fresh radio read before any hardware write.</p>
-          <p class="test-meta">3. Change either the boot text, the boot display mode, or the callsign. Keep DMR identity-area inspection read-only while locating the actual DMR ID bytes.</p>
+          <p class="test-meta">3. Change either the boot text, the boot display mode, the callsign, or the DMR ID. DMR ID writes require an official current-ID confirmation match before the button enables.</p>
           <p class="test-meta">4. Run exactly one isolated write button and wait for the immediate readback verify to pass.</p>
           <p class="test-meta">5. Run Read Back &amp; Verify after text changes, then save a fresh post-write backup if needed.</p>
           <p class="test-meta">6. Power-cycle the radio and do another fresh read to confirm the setting persisted.</p>
@@ -345,7 +361,9 @@
         <div class="section-card-body">
           <p class="test-meta">1. Short callsign like <code>A</code> should encode as <code>41 FF FF FF FF FF FF FF</code>.</p>
           <p class="test-meta">2. Full 8-character callsign should use all 8 bytes with no padding.</p>
-          <p class="test-meta">3. Revert to the original callsign and verify again.</p>
+          <p class="test-meta">3. DMR ID <code>3214246</code> should encode as <code>03 21 42 46</code>.</p>
+          <p class="test-meta">4. DMR ID <code>3214288</code> should encode as <code>03 21 42 88</code>.</p>
+          <p class="test-meta">5. Revert to the original callsign or DMR ID and verify again.</p>
         </div>
       </div>
 
@@ -358,10 +376,11 @@
           <p class="test-meta">Boot text write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7540</code>, <code>X 02</code> overlay the 32 boot-text bytes, then <code>X 03</code> erase/program the sector. <code>X 04</code> must not be used on STM32 because it can ACK without modifying flash.</p>
           <p class="test-meta">Boot display mode write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7518</code>, <code>X 02</code> overlay exactly one byte at <code>0x7518</code>, then <code>X 03</code> erase/program the sector. Immediate readback must return <code>0x00</code> for Picture or <code>0x01</code> for Text.</p>
           <p class="test-meta">Callsign write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x00E0</code>, <code>X 02</code> overlay exactly 8 bytes at <code>0x00E0-0x00E7</code>, then <code>X 03</code> erase/program the sector. Immediate readback must match the FF-padded ASCII callsign bytes exactly.</p>
+          <p class="test-meta">DMR ID write path on STM32: <code>X 01</code> prepare the same 4 KB sector containing <code>0x00E8</code>, <code>X 02</code> overlay exactly 4 bytes at <code>0x00E8-0x00EB</code>, then <code>X 03</code> erase/program the sector. Immediate readback must match the packed-decimal bytes exactly.</p>
           <p class="test-meta">Callsign guardrails: fresh Read from Radio required, Save Backup required, ASCII-only validation, max 8 characters, pad with <code>0xFF</code> and never <code>0x00</code>, write only <code>0x00E0-0x00E7</code>, and mark the session stale after success.</p>
-          <p class="test-meta">Identity inspector: <code>0x00E0-0x00E7</code> is treated as callsign ASCII, FF-padded. <code>0x00E8-0x00EB</code> matched known DMR ID <code>3214246</code> as packed decimal byte order: <code>03 21 42 46 -> 03214246 -> 3214246</code>.</p>
+          <p class="test-meta">DMR ID guardrails: known current ID confirmation from official CPS/radio required, input range <code>1-16776415</code>, encode as 8 decimal digits left-padded with <code>0</code>, store two digits per byte, write only <code>0x00E8-0x00EB</code>, immediate readback verify, then mark the session stale.</p>
+          <p class="test-meta">Identity inspector: <code>0x00E0-0x00E7</code> is treated as callsign ASCII, FF-padded. <code>0x00E8-0x00EB</code> is treated as packed decimal byte order: <code>03 21 42 46 -> 03214246 -> 3214246</code> and <code>03 21 42 88 -> 03214288 -> 3214288</code>.</p>
           <p class="test-meta">Codeplug file loads are inspection-only. Loading a <code>.g77</code> file must not enable any write action until a fresh Read from Radio and Save Backup are completed.</p>
-          <p class="test-meta">DMR ID remains read-only here until that storage format is confirmed across multiple radios and multiple codeplugs. Do not enable DMR ID writes yet.</p>
           <p class="test-meta">Do not enable full-codeplug write here. This page remains an isolated hardware write lab.</p>
         </div>
       </div>
@@ -436,6 +455,7 @@
   const editCallsignEl = document.getElementById('edit-callsign');
   const writeCallsignBtn = document.getElementById('write-callsign-btn');
   const callsignStatusEl = document.getElementById('callsign-status');
+  const currentDmrIdEl = document.getElementById('current-dmr-id');
   const identityCallsignRawEl = document.getElementById('identity-callsign-raw');
   const identityCallsignAsciiEl = document.getElementById('identity-callsign-ascii');
   const identityCandidateRawEl = document.getElementById('identity-candidate-raw');
@@ -443,9 +463,13 @@
   const identityCandidateU32BeEl = document.getElementById('identity-candidate-u32-be');
   const identityCandidateBcdEl = document.getElementById('identity-candidate-bcd');
   const knownDmrIdInputEl = document.getElementById('known-dmr-id-input');
+  const editDmrIdEl = document.getElementById('edit-dmr-id');
   const identityCandidateCompareEl = document.getElementById('identity-candidate-compare');
+  const dmrIdEncodedEl = document.getElementById('dmr-id-encoded');
   const identityDumpEl = document.getElementById('identity-dump');
   const identityStatusEl = document.getElementById('identity-status');
+  const writeDmrIdBtn = document.getElementById('write-dmr-id-btn');
+  const dmrIdStatusEl = document.getElementById('dmr-id-status');
 
   function makeStamp() {
     const d = new Date();
@@ -494,6 +518,11 @@
   function setCallsignStatus(msg, cls = 'muted') {
     callsignStatusEl.textContent = msg;
     callsignStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
+  }
+
+  function setDmrIdStatus(msg, cls = 'muted') {
+    dmrIdStatusEl.textContent = msg;
+    dmrIdStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
   }
 
   function setProgress(pct, msg = '') {
@@ -656,83 +685,101 @@
     };
   }
 
-  function decodePackedDecimalCandidates(bytes) {
-    const stored = decodePackedDecimalVariant(bytes);
-    const reversed = decodePackedDecimalVariant(Uint8Array.from(bytes).reverse());
-    return { stored, reversed };
+  function parseDmrIdInput(rawValue, fieldLabel) {
+    const trimmed = String(rawValue || '').trim();
+    if (!trimmed) {
+      return { empty: true, value: null, error: '' };
+    }
+    if (!/^\d+$/.test(trimmed)) {
+      return { empty: false, value: null, error: `${fieldLabel} must be a whole decimal number.` };
+    }
+    const value = Number.parseInt(trimmed, 10);
+    if (value < DMR_ID_MIN || value > DMR_ID_MAX) {
+      return { empty: false, value: null, error: `${fieldLabel} must be between ${DMR_ID_MIN} and ${DMR_ID_MAX}.` };
+    }
+    return { empty: false, value, error: '' };
   }
 
-  function formatPackedDecimalCandidates(decoded) {
-    const parts = [];
-    if (decoded.stored.applicable) {
-      parts.push(`${decoded.stored.digits} (byte order)`);
+  function encodeDmrIdBytes(value) {
+    if (!Number.isInteger(value) || value < DMR_ID_MIN || value > DMR_ID_MAX) {
+      throw new Error(`DMR ID must be an integer between ${DMR_ID_MIN} and ${DMR_ID_MAX}.`);
     }
-    if (decoded.reversed.applicable) {
-      parts.push(`${decoded.reversed.digits} (reversed bytes)`);
+    const digits = String(value).padStart(8, '0');
+    const out = new Uint8Array(IDENTITY_DMR_CANDIDATE_LENGTH);
+    for (let i = 0; i < IDENTITY_DMR_CANDIDATE_LENGTH; i++) {
+      const hi = digits.charCodeAt(i * 2) - 48;
+      const lo = digits.charCodeAt((i * 2) + 1) - 48;
+      out[i] = (hi << 4) | lo;
     }
-    return parts.length ? parts.join(' | ') : 'Not valid packed decimal';
+    return { digits, bytes: out };
+  }
+
+  function formatPackedDecimalValue(decoded) {
+    if (!decoded.applicable) {
+      return 'Not valid packed decimal';
+    }
+    return `${decoded.digits} -> ${decoded.numeric}`;
+  }
+
+  function updateDmrIdWritePreview() {
+    const parsed = parseDmrIdInput(editDmrIdEl.value, 'New DMR ID');
+    if (parsed.empty) {
+      dmrIdEncodedEl.textContent = 'Enter a new DMR ID to preview the packed-decimal bytes.';
+      return;
+    }
+    if (parsed.error) {
+      dmrIdEncodedEl.textContent = parsed.error;
+      return;
+    }
+    const encoded = encodeDmrIdBytes(parsed.value);
+    dmrIdEncodedEl.textContent = `${formatHexBytes(encoded.bytes)} -> ${encoded.digits}`;
   }
 
   function updateIdentityCandidateComparison() {
     if (!loadedCodeplug) {
-      identityCandidateCompareEl.textContent = 'Read the radio first, then compare candidate decodes against the known DMR ID.';
+      identityCandidateCompareEl.textContent = 'Read the radio first, then compare 0x00E8-0x00EB against the official current DMR ID.';
       return;
     }
 
-    const rawValue = (knownDmrIdInputEl.value || '').trim();
-    if (!rawValue) {
-      identityCandidateCompareEl.textContent = 'Enter the known DMR ID to compare candidate decodes.';
+    const parsedKnown = parseDmrIdInput(knownDmrIdInputEl.value, 'Official current DMR ID');
+    if (parsedKnown.empty) {
+      identityCandidateCompareEl.textContent = 'Enter the official current DMR ID to confirm that the stored bytes match before writing.';
       return;
     }
-
-    if (!/^\d+$/.test(rawValue)) {
-      identityCandidateCompareEl.textContent = 'Known DMR ID must be a whole decimal number.';
-      return;
-    }
-
-    const knownValue = Number.parseInt(rawValue, 10);
-    if (knownValue < DMR_ID_MIN || knownValue > DMR_ID_MAX) {
-      identityCandidateCompareEl.textContent = `Known DMR ID must be between ${DMR_ID_MIN} and ${DMR_ID_MAX}.`;
+    if (parsedKnown.error) {
+      identityCandidateCompareEl.textContent = parsedKnown.error;
       return;
     }
 
     const buffer = loadedCodeplug.toArrayBuffer();
     const candidateBytes = extractIdentityBytes(buffer, IDENTITY_DMR_CANDIDATE_OFFSET, IDENTITY_DMR_CANDIDATE_LENGTH);
-    const candidateLe = readUint32LEAt(buffer, IDENTITY_DMR_CANDIDATE_OFFSET);
-    const candidateBe = readUint32BEAt(buffer, IDENTITY_DMR_CANDIDATE_OFFSET);
-    const candidateBcd = decodePackedDecimalCandidates(candidateBytes);
-    const matches = [];
-
-    if (candidateLe === knownValue) matches.push('uint32 little-endian');
-    if (candidateBe === knownValue) matches.push('uint32 big-endian');
-    if (candidateBcd.stored.applicable && candidateBcd.stored.numeric === knownValue) {
-      matches.push('packed decimal (byte order)');
-    }
-    if (candidateBcd.reversed.applicable && candidateBcd.reversed.numeric === knownValue) {
-      matches.push('packed decimal (reversed bytes)');
-    }
-
-    if (matches.length) {
-      identityCandidateCompareEl.textContent = `Known DMR ID ${knownValue} matches ${matches.join(', ')}. Keep this page read-only until the storage format is confirmed across radios.`;
+    const stored = decodePackedDecimalVariant(candidateBytes);
+    if (!stored.applicable) {
+      identityCandidateCompareEl.textContent = 'Stored bytes at 0x00E8-0x00EB are not valid packed decimal digits.';
       return;
     }
-
-    identityCandidateCompareEl.textContent = `Known DMR ID ${knownValue} does not match the current uint32 or packed-decimal decodes for 0x00E8-0x00EB.`;
+    if (stored.numeric === parsedKnown.value) {
+      identityCandidateCompareEl.textContent = `Official current DMR ID ${parsedKnown.value} matches stored packed decimal ${stored.digits}. Confirmation gate satisfied for isolated DMR ID write.`;
+      return;
+    }
+    identityCandidateCompareEl.textContent = `Official current DMR ID ${parsedKnown.value} does not match stored packed decimal ${stored.digits} (${stored.numeric}) at 0x00E8-0x00EB.`;
   }
 
   function renderIdentityInspector(parser) {
     const buffer = parser.toArrayBuffer();
     const callsignBytes = extractIdentityBytes(buffer, IDENTITY_CALLSIGN_OFFSET, IDENTITY_CALLSIGN_LENGTH);
     const candidateBytes = extractIdentityBytes(buffer, IDENTITY_DMR_CANDIDATE_OFFSET, IDENTITY_DMR_CANDIDATE_LENGTH);
-    const candidateBcd = decodePackedDecimalCandidates(candidateBytes);
+    const candidateBcd = decodePackedDecimalVariant(candidateBytes);
 
+    currentDmrIdEl.textContent = candidateBcd.applicable ? String(candidateBcd.numeric) : 'Invalid packed decimal';
     identityCallsignRawEl.textContent = formatHexBytes(callsignBytes);
     identityCallsignAsciiEl.textContent = `"${trimAsciiFF(callsignBytes)}"`;
     identityCandidateRawEl.textContent = formatHexBytes(candidateBytes);
     identityCandidateU32LeEl.textContent = String(readUint32LEAt(buffer, IDENTITY_DMR_CANDIDATE_OFFSET));
     identityCandidateU32BeEl.textContent = String(readUint32BEAt(buffer, IDENTITY_DMR_CANDIDATE_OFFSET));
-    identityCandidateBcdEl.textContent = formatPackedDecimalCandidates(candidateBcd);
+    identityCandidateBcdEl.textContent = formatPackedDecimalValue(candidateBcd);
     updateIdentityCandidateComparison();
+    updateDmrIdWritePreview();
 
     const dumpLength = (IDENTITY_INSPECTOR_END - IDENTITY_INSPECTOR_START) + 1;
     const dumpBytes = extractIdentityBytes(buffer, IDENTITY_INSPECTOR_START, dumpLength);
@@ -818,6 +865,16 @@
     const callsignAsciiOk = ASCII_RE.test(callsign);
     const selectedBootMode = getSelectedBootModeValue();
     const bootModeSelected = selectedBootMode === BOOT_DISPLAY_MODE_PICTURE || selectedBootMode === BOOT_DISPLAY_MODE_TEXT;
+    const knownDmr = parseDmrIdInput(knownDmrIdInputEl.value, 'Official current DMR ID');
+    const newDmr = parseDmrIdInput(editDmrIdEl.value, 'New DMR ID');
+    let storedDmr = null;
+    if (hasCodeplug) {
+      const candidateBytes = extractIdentityBytes(loadedCodeplug.toArrayBuffer(), IDENTITY_DMR_CANDIDATE_OFFSET, IDENTITY_DMR_CANDIDATE_LENGTH);
+      storedDmr = decodePackedDecimalVariant(candidateBytes);
+    }
+    const dmrConfirmationOk = !!(storedDmr && storedDmr.applicable && !knownDmr.empty && !knownDmr.error && storedDmr.numeric === knownDmr.value);
+    const dmrNewValueOk = !newDmr.empty && !newDmr.error;
+    const dmrSameAsCurrent = !!(storedDmr && storedDmr.applicable && dmrNewValueOk && storedDmr.numeric === newDmr.value);
 
     readBtn.disabled = busy;
     loadFileBtn.disabled = busy;
@@ -826,6 +883,7 @@
     writeBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !asciiOk;
     writeBootModeBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !bootModeSelected;
     writeCallsignBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !callsignAsciiOk;
+    writeDmrIdBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !dmrConfirmationOk || !dmrNewValueOk || dmrSameAsCurrent;
 
     if (!hasCodeplug) {
       setEditorStatus('Read the radio to load the current boot text.', 'muted');
@@ -864,9 +922,33 @@
     }
 
     if (!hasCodeplug) {
-      setIdentityStatus('Read the radio to inspect callsign bytes at 0x00E0 and the DMR ID candidate at 0x00E8.', 'muted');
+      setIdentityStatus('Read the radio to inspect callsign bytes at 0x00E0 and the packed-decimal DMR ID bytes at 0x00E8.', 'muted');
     } else {
       setIdentityStatus('Identity-area inspector refreshed from the loaded codeplug buffer.', 'ok');
+    }
+
+    if (!hasCodeplug) {
+      setDmrIdStatus('Read the radio, save a backup, confirm the current official DMR ID, then enter a new DMR ID.', 'muted');
+    } else if (!storedDmr || !storedDmr.applicable) {
+      setDmrIdStatus('Stored bytes at 0x00E8-0x00EB are not valid packed decimal digits.', 'err');
+    } else if (!sessionFreshRadioRead) {
+      setDmrIdStatus('Read the radio again before any further write.', 'muted');
+    } else if (!sessionBackupSaved) {
+      setDmrIdStatus('Save a backup from this fresh read before writing.', 'muted');
+    } else if (knownDmr.empty) {
+      setDmrIdStatus('Enter the current DMR ID exactly as shown in official CPS or on the radio.', 'muted');
+    } else if (knownDmr.error) {
+      setDmrIdStatus(knownDmr.error, 'err');
+    } else if (!dmrConfirmationOk) {
+      setDmrIdStatus(`Current DMR ID confirmation does not match stored packed decimal ${storedDmr.digits}.`, 'err');
+    } else if (newDmr.empty) {
+      setDmrIdStatus('Enter the new DMR ID to encode and write.', 'muted');
+    } else if (newDmr.error) {
+      setDmrIdStatus(newDmr.error, 'err');
+    } else if (dmrSameAsCurrent) {
+      setDmrIdStatus('New DMR ID already matches the current stored DMR ID.', 'muted');
+    } else {
+      setDmrIdStatus('Ready to write DMR ID only.', 'ok');
     }
 
     refreshSessionMeta();
@@ -876,6 +958,8 @@
     loadedCodeplug = new CodeplugParser(buffer);
     loadedCodeplug.filename = filename;
     loadedFilename = filename;
+    knownDmrIdInputEl.value = '';
+    editDmrIdEl.value = '';
     renderBootDisplayMode(loadedCodeplug);
     if (syncBootMode) {
       syncBootModeSelector(loadedCodeplug.view.getUint8(BOOT_DISPLAY_MODE_OFFSET));
@@ -972,12 +1056,17 @@
     const blob = new Blob([loadedCodeplug.toArrayBuffer()], { type: 'application/octet-stream' });
     downloadBlob(loadedFilename || `boottext_test_backup_${makeStamp()}.g77`, blob);
     sessionBackupSaved = true;
-    setStatus('Backup saved. You may now write boot text only, boot mode only, or callsign only.', 'ok');
+    setStatus('Backup saved. You may now write boot text only, boot mode only, callsign only, or DMR ID only.', 'ok');
     refreshButtons();
   });
 
   knownDmrIdInputEl.addEventListener('input', () => {
     updateIdentityCandidateComparison();
+    refreshButtons();
+  });
+  editDmrIdEl.addEventListener('input', () => {
+    updateDmrIdWritePreview();
+    refreshButtons();
   });
 
   if (debugToggleEl) {
@@ -1099,6 +1188,59 @@
     }
   }
 
+  async function cpwrWriteDmrId(payload, onProgress) {
+    if (!navigator.serial) {
+      throw new Error('Web Serial API not available. Use Chrome or Edge 89+.');
+    }
+    if (!(payload instanceof Uint8Array) || payload.length !== IDENTITY_DMR_CANDIDATE_LENGTH) {
+      throw new Error(`Refusing DMR ID write for invalid payload length ${payload?.length ?? 0}.`);
+    }
+
+    cpwrEnsureSingleWriteSector(
+      IDENTITY_DMR_CANDIDATE_OFFSET,
+      IDENTITY_DMR_CANDIDATE_LENGTH,
+      TEST_STM32_SECTOR_SIZE
+    );
+
+    let session = null;
+    let readTaskStarted = false;
+
+    try {
+      onProgress?.({ phase: 'write', pct: 0, msg: 'Connecting…' });
+      session = await cprdOpenSerialSession(TEST_SERIAL_FILTERS, 'cpwrWriteDmrId', { claimIO: false });
+      const { port } = session;
+      await cpwrDrainBuffer(port);
+      cprdClaimSerialSessionIO(session);
+      session.writer.__cprdSession = session;
+      const { writer, acc } = session;
+      await cprdPrimeRadioConnection(writer, acc);
+      const radioInfo = await cprdReadRadioInfo(writer, acc);
+      if (!radioInfo.isSTM32) {
+        throw new Error(`Unsupported radio type ${radioInfo.radioType}. This DMR ID write path is hardened only for STM32-family radios.`);
+      }
+
+      onProgress?.({ phase: 'write', pct: 35, msg: 'Writing DMR ID bytes…' });
+      await cpwrPrepareSector(writer, acc, IDENTITY_DMR_CANDIDATE_OFFSET, TEST_WRITE_BYTE);
+      await cpwrSendData(writer, acc, IDENTITY_DMR_CANDIDATE_OFFSET, payload, TEST_WRITE_BYTE);
+      await cpwrWriteSector(writer, acc, IDENTITY_DMR_CANDIDATE_OFFSET, TEST_WRITE_BYTE);
+
+      await cprdBeginCodeplugReadTask(writer, acc);
+      readTaskStarted = true;
+      onProgress?.({ phase: 'verify', pct: 70, msg: 'Reading back DMR ID bytes…' });
+      const readBack = await cprdReadChunk(writer, acc, TEST_READ_FLASH_AREA, IDENTITY_DMR_CANDIDATE_OFFSET, IDENTITY_DMR_CANDIDATE_LENGTH, 0);
+      compareBytesAtOffset(payload, readBack, IDENTITY_DMR_CANDIDATE_OFFSET, 'DMR ID');
+      await cprdEndCodeplugReadTask(writer, acc);
+      readTaskStarted = false;
+
+      return { ok: true, radioInfo, payload };
+    } finally {
+      if (readTaskStarted && session?.writer && session?.acc) {
+        try { await cprdEndCodeplugReadTask(session.writer, session.acc); } catch (_) {}
+      }
+      await cprdCloseSerialSession(session, readTaskStarted ? 'dmr id write aborted during verify' : 'dmr id write completed');
+    }
+  }
+
   writeBtn.addEventListener('click', async () => {
     if (!loadedCodeplug || !sessionFreshRadioRead || !sessionBackupSaved) return;
     busy = true;
@@ -1210,6 +1352,62 @@
         sessionFreshRadioRead = false;
         sessionBackupSaved = false;
         setStatus(`Callsign write failed: ${err.message}`, 'err');
+      }
+    } finally {
+      busy = false;
+      refreshButtons();
+    }
+  });
+
+  writeDmrIdBtn.addEventListener('click', async () => {
+    if (!loadedCodeplug || !sessionFreshRadioRead || !sessionBackupSaved) return;
+
+    busy = true;
+    resetProgress();
+    setStatus('Preparing DMR ID write…', 'muted');
+    refreshButtons();
+
+    try {
+      const knownDmr = parseDmrIdInput(knownDmrIdInputEl.value, 'Official current DMR ID');
+      if (knownDmr.empty || knownDmr.error) {
+        throw new Error(knownDmr.error || 'Enter the official current DMR ID before writing.');
+      }
+      const nextDmr = parseDmrIdInput(editDmrIdEl.value, 'New DMR ID');
+      if (nextDmr.empty || nextDmr.error) {
+        throw new Error(nextDmr.error || 'Enter the new DMR ID before writing.');
+      }
+
+      const currentBytes = extractIdentityBytes(loadedCodeplug.toArrayBuffer(), IDENTITY_DMR_CANDIDATE_OFFSET, IDENTITY_DMR_CANDIDATE_LENGTH);
+      const currentDecoded = decodePackedDecimalVariant(currentBytes);
+      if (!currentDecoded.applicable) {
+        throw new Error('Stored bytes at 0x00E8-0x00EB are not valid packed decimal digits.');
+      }
+      if (currentDecoded.numeric !== knownDmr.value) {
+        throw new Error(`Official current DMR ID ${knownDmr.value} does not match stored packed decimal ${currentDecoded.digits}.`);
+      }
+
+      const encoded = encodeDmrIdBytes(nextDmr.value);
+      const writeBuffer = loadedCodeplug.toArrayBuffer();
+      const parser = new CodeplugParser(writeBuffer);
+      new Uint8Array(writeBuffer, IDENTITY_DMR_CANDIDATE_OFFSET, IDENTITY_DMR_CANDIDATE_LENGTH).set(encoded.bytes);
+      await cpwrWriteDmrId(encoded.bytes, ({ pct, msg }) => {
+        setProgress(pct, msg || 'Writing DMR ID…');
+      });
+      loadedCodeplug = parser;
+      renderIdentityInspector(parser);
+      sessionFreshRadioRead = false;
+      sessionBackupSaved = false;
+      progressFill.style.width = '100%';
+      progressLabel.textContent = '100%';
+      setStatus('DMR ID write succeeded. Immediate readback matched exactly. Read the radio again before any further write.', 'ok');
+    } catch (err) {
+      resetProgress();
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.', 'muted');
+      } else {
+        sessionFreshRadioRead = false;
+        sessionBackupSaved = false;
+        setStatus(`DMR ID write failed: ${err.message}`, 'err');
       }
     } finally {
       busy = false;

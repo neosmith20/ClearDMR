@@ -87,11 +87,23 @@
   `immediate readback verify`
   `mark session stale after success and require another fresh read before any further write`
 
-### 8. DMR ID candidate stays read-only
-- `0x00E8-0x00EB` matched known DMR ID `3214246` as packed decimal byte order:
-  `03 21 42 46 -> 03214246 -> 3214246`
-- This is useful as an inspector result only for now
-- Do not enable DMR ID writes until confirmed across multiple radios and multiple codeplugs
+### 8. DMR ID format confirmed across two radios/codeplugs
+- Offset:
+  `0x00E8-0x00EB`
+- Length:
+  `4 bytes`
+- Encoding:
+  `packed decimal / BCD-like byte order`
+- Confirmed examples:
+  `3214246 -> 03214246 -> 03 21 42 46`
+  `3214288 -> 03214288 -> 03 21 42 88`
+- Encoding rule:
+  convert the DMR ID to 8 decimal digits
+  left-pad with `0`
+  store two digits per byte in forward byte order
+- Isolated DMR ID write support may exist only on `docs/cps/test.html`
+- Do not enable full-codeplug write
+- Do not integrate DMR ID write into the main CPS yet
 
 ### Current Safe Status
 
@@ -99,7 +111,8 @@
   hardware-proven boot text write
   hardware-proven boot mode write
   hardware-proven callsign write
-  DMR ID inspector remains read-only
+  DMR ID inspector remains visible
+  isolated DMR ID write support only
 - `docs/cps/index.html`:
   read/open/save/edit only
   full radio write disabled
@@ -108,15 +121,20 @@
 ### Next Steps
 
 - Add a verbose/debug logging toggle to reduce normal console spam
-- Continue testing boot text, boot mode, and callsign isolated writes
+- Continue testing boot text, boot mode, callsign, and DMR ID isolated writes
 - Run callsign edge cases:
   `A -> 41 FF FF FF FF FF FF FF`
   `full 8-character callsign -> no padding`
   `revert to original callsign and verify`
+- Run DMR ID edge cases:
+  `3214246 -> 03 21 42 46`
+  `3214288 -> 03 21 42 88`
+  `lowest valid 1 -> 00 00 00 01`
+  `highest valid 16776415 -> 16 77 64 15`
 - Compare picture/text backups to document changed bytes
 - Later integrate boot text, boot mode, and callsign controls into main CPS with the same guardrails
 - Do not enable full-codeplug write until separately validated
-- Do not enable DMR ID writes until the storage format is confirmed across multiple radios/codeplugs
+- Do not integrate DMR ID write into the main CPS until the isolated test path is boringly stable
 
 ## Session 1 — 2026-04-24: CMake Migration & CI
 
