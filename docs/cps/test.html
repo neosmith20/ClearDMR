@@ -190,7 +190,7 @@
             <button class="btn-sm btn-sm-write" id="write-btn" type="button" disabled>Write Boot Text Only</button>
             <button class="btn-sm btn-sm-outline" id="verify-btn" type="button" disabled>Read Back &amp; Verify</button>
           </div>
-          <input id="file-input" type="file" accept=".g77,.cdmr" hidden>
+          <input id="load-codeplug-file" type="file" accept=".cdmr,.g77,application/octet-stream" hidden>
           <p class="test-meta" id="session-meta">No radio read yet.</p>
           <div class="write-progress-wrap" id="progress-wrap">
             <div class="write-progress-bar">
@@ -594,7 +594,7 @@
 
   const readBtn = document.getElementById('read-btn');
   const loadFileBtn = document.getElementById('load-file-btn');
-  const fileInputEl = document.getElementById('file-input');
+  const loadCodeplugFileInputEl = document.getElementById('load-codeplug-file');
   const saveBackupBtn = document.getElementById('save-backup-btn');
   const writeBtn = document.getElementById('write-btn');
   const verifyBtn = document.getElementById('verify-btn');
@@ -1736,6 +1736,7 @@
     loadedFilename = filename;
     knownDmrIdInputEl.value = '';
     editDmrIdEl.value = '';
+    let mappingInspectorError = null;
     renderBootDisplayMode(loadedCodeplug);
     if (syncBootMode) {
       syncBootModeSelector(loadedCodeplug.view.getUint8(BOOT_DISPLAY_MODE_OFFSET));
@@ -1743,7 +1744,12 @@
     renderCurrentBootText(loadedCodeplug);
     renderCurrentCallsign(loadedCodeplug);
     renderIdentityInspector(loadedCodeplug);
-    renderMappingInspectors(loadedCodeplug);
+    try {
+      renderMappingInspectors(loadedCodeplug);
+    } catch (err) {
+      mappingInspectorError = err;
+      renderMappingInspectors(null);
+    }
     if (syncEditor) {
       const text = loadedCodeplug.bootText;
       editLine1El.value = text.line1;
@@ -1753,6 +1759,7 @@
       editCallsignEl.value = trimAsciiFF(extractIdentityBytes(buffer, IDENTITY_CALLSIGN_OFFSET, IDENTITY_CALLSIGN_LENGTH));
     }
     refreshButtons();
+    return { mappingInspectorError };
   }
 
   async function loadCodeplugFile(file) {
@@ -1761,10 +1768,24 @@
       throw new Error('Unsupported file type. Please choose a .g77 or .cdmr codeplug backup.');
     }
     const buffer = await file.arrayBuffer();
+    if (buffer.byteLength !== CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${buffer.byteLength} bytes; expected ${CODEPLUG_SIZE}.`);
+    }
     sessionFreshRadioRead = false;
     sessionBackupSaved = false;
-    setLoadedCodeplug(buffer, name, { syncEditor: true, syncCallsign: true });
-    setStatus('Codeplug file loaded for read-only inspection. Read from Radio and save a backup before any hardware write.', 'ok');
+    const { mappingInspectorError } = setLoadedCodeplug(buffer, name, {
+      syncEditor: true,
+      syncBootMode: true,
+      syncCallsign: true,
+    });
+    if (mappingInspectorError) {
+      setStatus(
+        `Loaded ${name} for read-only inspection, but custom-data rendering failed: ${mappingInspectorError.message}. Radio writes still require a fresh Read from Radio.`,
+        'err'
+      );
+      return;
+    }
+    setStatus(`Loaded ${name} for read-only inspection. Radio writes require a fresh Read from Radio.`, 'ok');
   }
 
   async function readFromRadio({ syncEditor = true, statusPrefix = 'Reading codeplug backup…' } = {}) {
@@ -1805,11 +1826,11 @@
 
   loadFileBtn.addEventListener('click', () => {
     if (busy) return;
-    fileInputEl.value = '';
-    fileInputEl.click();
+    loadCodeplugFileInputEl.value = '';
+    loadCodeplugFileInputEl.click();
   });
 
-  fileInputEl.addEventListener('change', async (event) => {
+  loadCodeplugFileInputEl.addEventListener('change', async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
