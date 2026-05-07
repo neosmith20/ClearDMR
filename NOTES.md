@@ -87,21 +87,35 @@
   `immediate readback verify`
   `mark session stale after success and require another fresh read before any further write`
 
-### 8. DMR ID format confirmed across two radios/codeplugs
+### 8. DMR ID write hardware-proven in `docs/cps/test.html`
 - Offset:
   `0x00E8-0x00EB`
 - Length:
   `4 bytes`
 - Encoding:
   `packed decimal / BCD-like byte order`
+- Valid range:
+  `1 to 16776415`
 - Confirmed examples:
   `3214246 -> 03214246 -> 03 21 42 46`
+  `3214247 -> 03214247 -> 03 21 42 47`
   `3214288 -> 03214288 -> 03 21 42 88`
 - Encoding rule:
   convert the DMR ID to 8 decimal digits
   left-pad with `0`
   store two digits per byte in forward byte order
-- Isolated DMR ID write support may exist only on `docs/cps/test.html`
+- Hardware-proven isolated DMR ID write path:
+  `3214246 -> 3214247 -> 3214246`
+  `03 21 42 46 -> 03 21 42 47 -> 03 21 42 46`
+  ClearDMR write succeeded using STM32 sector overlay:
+  `X 01 prepare sector`
+  `X 02 overlay 4 bytes at 0x00E8`
+  `X 03 erase/program sector`
+  immediate byte-for-byte readback verify passed
+  OpenGD77 CPS also confirmed the DMR ID changed correctly
+  DMR ID was reverted successfully after test
+  fresh read / power-cycle persistence confirmed if tested
+- Isolated DMR ID write support exists only on `docs/cps/test.html`
 - Do not enable full-codeplug write
 - Do not integrate DMR ID write into the main CPS yet
 
@@ -111,6 +125,7 @@
   hardware-proven boot text write
   hardware-proven boot mode write
   hardware-proven callsign write
+  hardware-proven DMR ID write
   DMR ID inspector remains visible
   isolated DMR ID write support only
 - `docs/cps/index.html`:
@@ -128,6 +143,7 @@
   `revert to original callsign and verify`
 - Run DMR ID edge cases:
   `3214246 -> 03 21 42 46`
+  `3214247 -> 03 21 42 47`
   `3214288 -> 03 21 42 88`
   `lowest valid 1 -> 00 00 00 01`
   `highest valid 16776415 -> 16 77 64 15`

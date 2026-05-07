@@ -362,24 +362,26 @@
           <p class="test-meta">1. Short callsign like <code>A</code> should encode as <code>41 FF FF FF FF FF FF FF</code>.</p>
           <p class="test-meta">2. Full 8-character callsign should use all 8 bytes with no padding.</p>
           <p class="test-meta">3. DMR ID <code>3214246</code> should encode as <code>03 21 42 46</code>.</p>
-          <p class="test-meta">4. DMR ID <code>3214288</code> should encode as <code>03 21 42 88</code>.</p>
-          <p class="test-meta">5. Revert to the original callsign or DMR ID and verify again.</p>
+          <p class="test-meta">4. DMR ID <code>3214247</code> should encode as <code>03 21 42 47</code>.</p>
+          <p class="test-meta">5. DMR ID <code>3214288</code> should encode as <code>03 21 42 88</code>.</p>
+          <p class="test-meta">6. Revert to the original callsign or DMR ID and verify again.</p>
         </div>
       </div>
 
       <div class="section-card">
         <div class="section-card-header"><h3>Protocol Notes</h3></div>
         <div class="section-card-body">
-          <p class="test-meta">This page is the only place where the proven boot-text and boot-mode write paths are exposed for now. The main CPS page stays read-only until more write paths are hardware-proven.</p>
+          <p class="test-meta">This page is the only place where the proven boot-text, boot-mode, callsign, and DMR ID write paths are exposed for now. The main CPS page stays read-only until broader radio-write paths are hardware-proven.</p>
           <p class="test-meta">Read path: open the port, clear only buffered accumulator state, then send direct <code>R</code> requests. No <code>C 00</code> or <code>C FE</code> init commands are sent before reads.</p>
           <p class="test-meta">Read responses: every response is treated as a strict <code>R</code>-framed packet. The reader sync-scans for <code>0x52</code>, logs and discards any pre-sync bytes, then reads the big-endian payload length and exact payload.</p>
           <p class="test-meta">Boot text write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7540</code>, <code>X 02</code> overlay the 32 boot-text bytes, then <code>X 03</code> erase/program the sector. <code>X 04</code> must not be used on STM32 because it can ACK without modifying flash.</p>
           <p class="test-meta">Boot display mode write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x7518</code>, <code>X 02</code> overlay exactly one byte at <code>0x7518</code>, then <code>X 03</code> erase/program the sector. Immediate readback must return <code>0x00</code> for Picture or <code>0x01</code> for Text.</p>
           <p class="test-meta">Callsign write path on STM32: <code>X 01</code> prepare the 4 KB sector containing <code>0x00E0</code>, <code>X 02</code> overlay exactly 8 bytes at <code>0x00E0-0x00E7</code>, then <code>X 03</code> erase/program the sector. Immediate readback must match the FF-padded ASCII callsign bytes exactly.</p>
-          <p class="test-meta">DMR ID write path on STM32: <code>X 01</code> prepare the same 4 KB sector containing <code>0x00E8</code>, <code>X 02</code> overlay exactly 4 bytes at <code>0x00E8-0x00EB</code>, then <code>X 03</code> erase/program the sector. Immediate readback must match the packed-decimal bytes exactly.</p>
+          <p class="test-meta">DMR ID write path on STM32 is hardware-proven: <code>X 01</code> prepare the same 4 KB sector containing <code>0x00E8</code>, <code>X 02</code> overlay exactly 4 bytes at <code>0x00E8-0x00EB</code>, then <code>X 03</code> erase/program the sector. Immediate readback must match the packed-decimal bytes exactly.</p>
           <p class="test-meta">Callsign guardrails: fresh Read from Radio required, Save Backup required, ASCII-only validation, max 8 characters, pad with <code>0xFF</code> and never <code>0x00</code>, write only <code>0x00E0-0x00E7</code>, and mark the session stale after success.</p>
           <p class="test-meta">DMR ID guardrails: known current ID confirmation from official CPS/radio required, input range <code>1-16776415</code>, encode as 8 decimal digits left-padded with <code>0</code>, store two digits per byte, write only <code>0x00E8-0x00EB</code>, immediate readback verify, then mark the session stale.</p>
-          <p class="test-meta">Identity inspector: <code>0x00E0-0x00E7</code> is treated as callsign ASCII, FF-padded. <code>0x00E8-0x00EB</code> is treated as packed decimal byte order: <code>03 21 42 46 -> 03214246 -> 3214246</code> and <code>03 21 42 88 -> 03214288 -> 3214288</code>.</p>
+          <p class="test-meta">Hardware validation: ClearDMR wrote the DMR ID successfully, immediate readback verify passed, OpenGD77 CPS confirmed the changed DMR ID, and the value was reverted successfully after test.</p>
+          <p class="test-meta">Identity inspector: <code>0x00E0-0x00E7</code> is treated as callsign ASCII, FF-padded. <code>0x00E8-0x00EB</code> is treated as packed decimal byte order: <code>03 21 42 46 -> 03214246 -> 3214246</code>, <code>03 21 42 47 -> 03214247 -> 3214247</code>, and <code>03 21 42 88 -> 03214288 -> 3214288</code>.</p>
           <p class="test-meta">Codeplug file loads are inspection-only. Loading a <code>.g77</code> file must not enable any write action until a fresh Read from Radio and Save Backup are completed.</p>
           <p class="test-meta">Do not enable full-codeplug write here. This page remains an isolated hardware write lab.</p>
         </div>
