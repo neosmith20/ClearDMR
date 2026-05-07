@@ -58,6 +58,7 @@
       <button class="btn-sm btn-sm-outline" id="new-btn" type="button">New Codeplug</button>
       <button class="btn-sm btn-sm-outline" id="open-btn" type="button">Open .g77 / .cdmr</button>
       <button class="btn-sm btn-sm-read" id="read-btn" type="button">Read from Radio</button>
+      <button class="btn-sm btn-sm-outline" id="save-backup-btn" type="button" disabled>Save Backup</button>
       <button class="btn-sm btn-sm-primary" id="save-btn" type="button" disabled>Save .cdmr</button>
       <button class="btn-sm btn-sm-write" id="write-btn" type="button" disabled title="Full radio writes are disabled while write support is being hardware-tested.">Write to Radio</button>
       <span id="write-disabled-note" style="margin-left:8px;font:12px/1.4 system-ui,sans-serif;color:#d6b363">Full radio writes are disabled for safety.</span>
@@ -776,6 +777,11 @@
 
   let codeplug = null;
   let sessionWriteVerified = false;
+  let sessionFreshRadioRead = false;
+  let sessionDirty = false;
+  let sessionSourceKind = 'none';
+  let readBusy = false;
+  let lastPersistedBuffer = null;
   const FULL_CODEPLUG_WRITE_ENABLED = false;
   const FULL_CODEPLUG_WRITE_DISABLED_TITLE = 'Full radio writes are disabled while write support is being hardware-tested.';
   const FULL_CODEPLUG_WRITE_BLOCK_MESSAGE =
@@ -786,6 +792,7 @@
   const fileInput   = document.getElementById('file-input');
   const openBtn     = document.getElementById('open-btn');
   const dropOpenBtn = document.getElementById('drop-open-btn');
+  const saveBackupBtn = document.getElementById('save-backup-btn');
   const saveBtn     = document.getElementById('save-btn');
   const writeBtn    = document.getElementById('write-btn');
   const dropZone    = document.getElementById('drop-zone');
@@ -864,18 +871,82 @@
       return;
     }
     try {
-      loadArrayBuffer(await file.arrayBuffer(), file.name);
+      loadArrayBuffer(await file.arrayBuffer(), file.name, { source: 'file', freshRadioRead: false });
     } catch (err) {
       alert('Failed to read codeplug: ' + err.message);
     }
   }
 
-  function loadArrayBuffer(buffer, filename) {
+  function loadArrayBuffer(buffer, filename, options = {}) {
+    const { source = 'file', freshRadioRead = false } = options;
+    const parser = new CodeplugParser(buffer);
+    parser.filename = filename;
     bootPendingBits = null;
     bootSourcePixels = null;
-    codeplug = new CodeplugParser(buffer);
-    codeplug.filename = filename;
+    codeplug = parser;
+    sessionSourceKind = source;
+    sessionFreshRadioRead = !!freshRadioRead;
+    sessionDirty = false;
+    sessionWriteVerified = false;
+    rememberCleanSnapshot();
     renderAll();
+  }
+
+  function copyArrayBuffer(buffer) {
+    return buffer ? buffer.slice(0) : null;
+  }
+
+  function buffersEqual(a, b) {
+    if (!a || !b || a.byteLength !== b.byteLength) return false;
+    const av = new Uint8Array(a);
+    const bv = new Uint8Array(b);
+    for (let i = 0; i < av.length; i++) {
+      if (av[i] !== bv[i]) return false;
+    }
+    return true;
+  }
+
+  function rememberCleanSnapshot() {
+    lastPersistedBuffer = codeplug ? copyArrayBuffer(codeplug.toArrayBuffer()) : null;
+    sessionDirty = false;
+    updateSessionVerifyIndicator();
+    refreshActionButtons();
+  }
+
+  function hasUnsavedChanges() {
+    if (!codeplug) return false;
+    if (!lastPersistedBuffer) return !!sessionDirty;
+    return !buffersEqual(codeplug.toArrayBuffer(), lastPersistedBuffer);
+  }
+
+  function markCodeplugModified() {
+    if (!codeplug) return;
+    sessionDirty = true;
+    sessionFreshRadioRead = false;
+    sessionWriteVerified = false;
+    updateSessionVerifyIndicator();
+    refreshActionButtons();
+  }
+
+  function refreshActionButtons() {
+    const hasCodeplug = !!codeplug;
+    const canSaveBackup = hasCodeplug && sessionFreshRadioRead && !sessionDirty;
+
+    saveBtn.disabled = readBusy || !hasCodeplug;
+    saveBackupBtn.disabled = readBusy || !canSaveBackup;
+    writeBtn.disabled = true;
+    writeBtn.title = FULL_CODEPLUG_WRITE_DISABLED_TITLE;
+
+    openBtn.disabled = readBusy;
+    dropOpenBtn.disabled = readBusy;
+    readBtn.disabled = readBusy;
+    const dropReadBtnEl = document.getElementById('drop-read-btn');
+    if (dropReadBtnEl) dropReadBtnEl.disabled = readBusy;
+    const newBtnEl = document.getElementById('new-btn');
+    if (newBtnEl) newBtnEl.disabled = readBusy;
+    const dropNewBtnEl = document.getElementById('drop-new-btn');
+    if (dropNewBtnEl) dropNewBtnEl.disabled = readBusy;
+    fileInput.disabled = readBusy;
   }
 
   // ── Save ──────────────────────────────────────────────────────────────────
@@ -889,6 +960,19 @@
     a.download = (codeplug.filename || 'codeplug').replace(/\.(g77|cdmr)$/i, '') + '.cdmr';
     a.click();
     URL.revokeObjectURL(url);
+    rememberCleanSnapshot();
+  });
+
+  saveBackupBtn.addEventListener('click', () => {
+    if (!codeplug || !sessionFreshRadioRead || sessionDirty) return;
+    const blob = new Blob([codeplug.toArrayBuffer()], { type: 'application/octet-stream' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = codeplug.filename || `radio_read_${makeDumpStamp()}.g77`;
+    a.click();
+    URL.revokeObjectURL(url);
+    rememberCleanSnapshot();
   });
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
@@ -934,10 +1018,8 @@
     setInfoEditable(ibDmrId,    gs.dmrId ? gs.dmrId.toString() : '—');
     ibFilename.textContent = codeplug.filename || 'unknown';
     ibFilename.className   = 'filename-chip';
-    saveBtn.disabled       = false;
-    writeBtn.disabled      = true;
-    writeBtn.title         = FULL_CODEPLUG_WRITE_DISABLED_TITLE;
     updateSessionVerifyIndicator();
+    refreshActionButtons();
 
     // Warn when the codeplug uses the original 16-channel-per-zone format.
     // This is normal for radios that were never programmed with ClearDMR CPS.
@@ -988,8 +1070,31 @@
 
   function updateSessionVerifyIndicator() {
     if (!ibSessionVerify) return;
-    ibSessionVerify.textContent = sessionWriteVerified ? 'Round-trip OK' : 'Unverified';
-    ibSessionVerify.className = sessionWriteVerified ? 'info-value' : 'info-value placeholder';
+    let text = 'Unverified';
+    let cls = 'info-value placeholder';
+
+    if (sessionWriteVerified) {
+      text = 'Round-trip OK';
+      cls = 'info-value';
+    } else if (sessionDirty) {
+      text = 'Modified';
+      cls = 'info-value';
+    } else if (sessionFreshRadioRead) {
+      text = 'Fresh radio read';
+      cls = 'info-value';
+    } else if (sessionSourceKind === 'radio') {
+      text = 'Radio source';
+      cls = 'info-value';
+    } else if (sessionSourceKind === 'file') {
+      text = 'File loaded';
+      cls = 'info-value';
+    } else if (sessionSourceKind === 'new') {
+      text = 'New codeplug';
+      cls = 'info-value';
+    }
+
+    ibSessionVerify.textContent = text;
+    ibSessionVerify.className = cls;
   }
 
   function makeInfoEditable(span, maxLen, numericOnly, onSave) {
@@ -1020,6 +1125,7 @@
       const name = val.toUpperCase().substring(0, 8);
       codeplug.writeGeneralSettings({ radioName: name, dmrId: codeplug.generalSettings.dmrId });
       setInfoEditable(ibCallsign, name || '—');
+      markCodeplugModified();
     });
   });
 
@@ -1029,6 +1135,7 @@
       const id = parseInt(val, 10) || 0;
       codeplug.writeGeneralSettings({ radioName: codeplug.generalSettings.radioName, dmrId: id });
       setInfoEditable(ibDmrId, id ? id.toString() : '—');
+      markCodeplugModified();
     });
   });
 
@@ -1048,6 +1155,7 @@
     codeplug.reorderChannels(order);
     refreshChannels();
     refreshZones();
+    markCodeplugModified();
   }
 
   function renderChannels(channels) {
@@ -1127,6 +1235,7 @@
         if (!confirm(`Delete channel "${ch.name}"?`)) return;
         codeplug.deleteChannel(ch.slotIndex);
         refreshChannels();
+        markCodeplugModified();
       });
       tbody.appendChild(tr);
     });
@@ -1146,6 +1255,7 @@
       codeplug.reorderChannels(channels.map(ch => ch.slotIndex));
       refreshChannels();
       refreshZones();
+      markCodeplugModified();
     });
   });
 
@@ -1209,6 +1319,7 @@
         if (!confirm(`Delete zone "${zone.name}"?`)) return;
         codeplug.deleteZone(zone.slotIndex);
         refreshZones();
+        markCodeplugModified();
       });
       tbody.appendChild(tr);
     });
@@ -1243,6 +1354,7 @@
         if (!confirm(`Delete contact "${ct.name}"?`)) return;
         codeplug.deleteContact(ct.slotIndex);
         refreshContacts();
+        markCodeplugModified();
       });
       tbody.appendChild(tr);
     });
@@ -1264,6 +1376,7 @@
     if      (type === 'channel') { codeplug.deleteChannel(obj.slotIndex); refreshChannels(); }
     else if (type === 'zone')    { codeplug.deleteZone(obj.slotIndex);    refreshZones();    }
     else if (type === 'contact') { codeplug.deleteContact(obj.slotIndex); refreshContacts(); }
+    markCodeplugModified();
     closeModal();
   });
 
@@ -1411,6 +1524,7 @@
     });
     closeModal();
     refreshChannels();
+    markCodeplugModified();
   }
 
   // ── Zone form ─────────────────────────────────────────────────────────────
@@ -1501,6 +1615,7 @@
     });
     closeModal();
     refreshZones();
+    markCodeplugModified();
   }
 
   // ── Contact form ──────────────────────────────────────────────────────────
@@ -1529,6 +1644,7 @@
     });
     closeModal();
     refreshContacts();
+    markCodeplugModified();
   }
 
   // ── Util ──────────────────────────────────────────────────────────────────
@@ -1627,6 +1743,7 @@
   document.getElementById('bootimg-save').addEventListener('click', () => {
     if (!codeplug || !bootPendingBits) return;
     codeplug.writeBootImage(bootPendingBits);
+    markCodeplugModified();
     // Refresh the "current image" panel
     document.getElementById('boot-current-card').classList.remove('hidden');
     renderBootBytesToCanvas(bootPendingBits, document.getElementById('boot-current-canvas'));
@@ -1785,6 +1902,7 @@
     const { entries, errors } = parseMelody(document.getElementById('melody-textarea').value || '');
     if (errors.length || !entries.length) return;
     codeplug.writeBootTune(entries.slice(0, BOOT_TUNE_MAX));
+    markCodeplugModified();
     const btn = document.getElementById('melody-save');
     const orig = btn.textContent;
     btn.textContent = 'Saved!';
@@ -1878,6 +1996,10 @@
     codeplug          = CodeplugParser.createBlank();
     codeplug.filename = `${callsign || 'codeplug'}_${names[model] || model}.cdmr`;
     codeplug.writeGeneralSettings({ radioName: callsign, dmrId });
+    sessionSourceKind = 'new';
+    sessionFreshRadioRead = false;
+    sessionWriteVerified = false;
+    rememberCleanSnapshot();
     closeWizard();
     renderAll();
   }
@@ -2060,6 +2182,7 @@
       minUHF: parseInt(blUhfMin.value, 10),
       maxUHF: parseInt(blUhfMax.value, 10),
     });
+    markCodeplugModified();
     const orig = blSave.textContent;
     blSave.textContent = 'Saved!';
     setTimeout(() => { blSave.textContent = orig; }, 1500);
@@ -2119,19 +2242,37 @@
   function openReadModal() {
     readStatusEl.textContent  = '';
     readStatusEl.className    = 'write-status';
-    readProgressWrap.classList.remove('visible');
-    readProgressFill.style.width  = '0%';
-    readProgressLbl.textContent   = '0%';
-    readConnectBtn.disabled = false;
+    resetReadProgress();
+    setReadBusy(false);
     updateReadModeUi();
     readModal.showModal();
   }
 
-  function closeReadModal() { readModal.close(); }
+  function closeReadModal() {
+    if (readBusy) return;
+    readModal.close();
+  }
 
   function setReadStatus(msg, cls) {
     readStatusEl.textContent = msg;
     readStatusEl.className   = 'write-status' + (cls ? ' ' + cls : '');
+  }
+
+  function resetReadProgress() {
+    readProgressWrap.classList.remove('visible');
+    readProgressFill.style.width = '0%';
+    readProgressLbl.textContent = '0%';
+  }
+
+  function setReadBusy(nextBusy) {
+    readBusy = !!nextBusy;
+    refreshActionButtons();
+
+    const rawControls = [readModeEl, rawAreaEl, rawStartEl, rawLengthEl, rawChunkEl, rawDelayEl, ...rawPresetBtns];
+    rawControls.forEach(el => { if (el) el.disabled = readBusy; });
+    readConnectBtn.disabled = readBusy;
+    readCancelBtn.disabled = readBusy;
+    readModalClose.disabled = readBusy;
   }
 
   function updateReadModeUi() {
@@ -2154,7 +2295,12 @@
   readModal.addEventListener('click', e => { if (e.target === readModal) closeReadModal(); });
 
   readConnectBtn.addEventListener('click', async () => {
-    readConnectBtn.disabled = true;
+    if (readModeEl.value === 'codeplug' && codeplug && hasUnsavedChanges()) {
+      const confirmed = confirm('Unsaved changes will be replaced by a fresh radio read. Continue?');
+      if (!confirmed) return;
+    }
+
+    setReadBusy(true);
     readProgressWrap.classList.add('visible');
     readProgressFill.style.width  = '0%';
     readProgressLbl.textContent   = '0%';
@@ -2162,17 +2308,16 @@
 
     try {
       if (readModeEl.value === 'codeplug') {
-        const stamp = makeDumpStamp();
-        const filename = `radio_${stamp}.g77`;
+        const filename = `radio_read_${makeDumpStamp()}.g77`;
         const result = await cpreadReadCodeplug(({ pct, msg }) => {
           readProgressFill.style.width = `${pct}%`;
           readProgressLbl.textContent  = `${pct}%`;
           setReadStatus(msg || '', 'muted');
         });
-        loadArrayBuffer(result.buffer, filename);
+        loadArrayBuffer(result.buffer, filename, { source: 'radio', freshRadioRead: true });
         readProgressFill.style.width = '100%';
         readProgressLbl.textContent  = '100%';
-        setReadStatus(`Loaded ${filename} from radio.`, 'ok');
+        setReadStatus('Radio read complete. Save a backup before making changes.', 'ok');
       } else {
         const params = {
           area: Number(rawAreaEl.value),
@@ -2233,16 +2378,16 @@
         }
       }
     } catch (err) {
+      resetReadProgress();
       if (err.name === 'NotFoundError') {
         setReadStatus('No device selected.', 'muted');
       } else {
         setReadStatus(`Read failed: ${err.message}`, 'err');
       }
-      readConnectBtn.disabled = false;
       return;
+    } finally {
+      setReadBusy(false);
     }
-
-    readConnectBtn.disabled = false;
   });
 
   </script>
