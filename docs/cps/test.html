@@ -543,23 +543,23 @@
   const IDENTITY_INSPECTOR_END = 0x0100;
   const TEST_BOOT_TEXT_LINE_LEN = 16;
   const TEST_BOOT_TEXT_TOTAL_LEN = 32;
-  const CODEPLUG_SIZE = 0x20000;
-  const CUSTOM_DATA_OFFSET = 0x1EE60;
-  const CUSTOM_DATA_LENGTH = CODEPLUG_SIZE - CUSTOM_DATA_OFFSET;
-  const CUSTOM_DATA_MAGIC = 'OpenGD77';
-  const CUSTOM_DATA_HEADER_SIZE = 12;
-  const CUSTOM_DATA_BLOCK_HEADER_SIZE = 8;
-  const CUSTOM_DATA_TYPE_IMAGE = 0x01;
-  const CUSTOM_DATA_TYPE_MELODY = 0x02;
-  const CUSTOM_DATA_TYPE_SATELLITE = 0x03;
-  const CUSTOM_DATA_TYPE_THEME_DAY = 0x04;
-  const CUSTOM_DATA_TYPE_THEME_NIGHT = 0x05;
-  const BOOT_IMAGE_WIDTH = 128;
-  const BOOT_IMAGE_HEIGHT = 64;
-  const BOOT_IMAGE_SIZE = 1024;
-  const SATELLITE_BLOCK_SIZE = 2520;
-  const SATELLITE_ENTRY_SIZE = 100;
-  const SATELLITE_ENTRY_COUNT = 25;
+  const TEST_CODEPLUG_SIZE = 0x20000;
+  const TEST_CUSTOM_DATA_OFFSET = 0x1EE60;
+  const TEST_CUSTOM_DATA_LENGTH = TEST_CODEPLUG_SIZE - TEST_CUSTOM_DATA_OFFSET;
+  const TEST_CUSTOM_DATA_MAGIC = 'OpenGD77';
+  const TEST_CUSTOM_DATA_HEADER_SIZE = 12;
+  const TEST_CUSTOM_DATA_BLOCK_HEADER_SIZE = 8;
+  const TEST_CUSTOM_DATA_TYPE_IMAGE = 0x01;
+  const TEST_CUSTOM_DATA_TYPE_MELODY = 0x02;
+  const TEST_CUSTOM_DATA_TYPE_SATELLITE = 0x03;
+  const TEST_CUSTOM_DATA_TYPE_THEME_DAY = 0x04;
+  const TEST_CUSTOM_DATA_TYPE_THEME_NIGHT = 0x05;
+  const TEST_BOOT_IMAGE_WIDTH = 128;
+  const TEST_BOOT_IMAGE_HEIGHT = 64;
+  const TEST_BOOT_IMAGE_SIZE = 1024;
+  const TEST_SATELLITE_BLOCK_SIZE = 2520;
+  const TEST_SATELLITE_ENTRY_SIZE = 100;
+  const TEST_SATELLITE_ENTRY_COUNT = 25;
   const DMR_ID_MIN = 1;
   const DMR_ID_MAX = 16776415;
   const ASCII_RE = /^[\x20-\x7E]*$/;
@@ -786,8 +786,8 @@
   }
 
   function extractBootTextBytes(arrayBuffer) {
-    if (arrayBuffer.byteLength < CODEPLUG_SIZE) {
-      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${CODEPLUG_SIZE}.`);
+    if (arrayBuffer.byteLength < TEST_CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${TEST_CODEPLUG_SIZE}.`);
     }
     return new Uint8Array(arrayBuffer.slice(BOOT_TEXT_OFFSET, BOOT_TEXT_OFFSET + TEST_BOOT_TEXT_TOTAL_LEN));
   }
@@ -806,8 +806,8 @@
   }
 
   function extractIdentityBytes(arrayBuffer, offset, length) {
-    if (arrayBuffer.byteLength < CODEPLUG_SIZE) {
-      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${CODEPLUG_SIZE}.`);
+    if (arrayBuffer.byteLength < TEST_CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${TEST_CODEPLUG_SIZE}.`);
     }
     return new Uint8Array(arrayBuffer.slice(offset, offset + length));
   }
@@ -862,15 +862,15 @@
   }
 
   function readUint32LEAt(arrayBuffer, offset) {
-    if (arrayBuffer.byteLength < CODEPLUG_SIZE) {
-      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${CODEPLUG_SIZE}.`);
+    if (arrayBuffer.byteLength < TEST_CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${TEST_CODEPLUG_SIZE}.`);
     }
     return new DataView(arrayBuffer).getUint32(offset, true);
   }
 
   function readUint32BEAt(arrayBuffer, offset) {
-    if (arrayBuffer.byteLength < CODEPLUG_SIZE) {
-      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${CODEPLUG_SIZE}.`);
+    if (arrayBuffer.byteLength < TEST_CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${TEST_CODEPLUG_SIZE}.`);
     }
     return new DataView(arrayBuffer).getUint32(offset, false);
   }
@@ -917,16 +917,16 @@
   function renderBootBytesToCanvas(bytes, canvas) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (!(bytes instanceof Uint8Array) || bytes.length < BOOT_IMAGE_SIZE) {
+    if (!(bytes instanceof Uint8Array) || bytes.length < TEST_BOOT_IMAGE_SIZE) {
       return false;
     }
-    const img = ctx.createImageData(BOOT_IMAGE_WIDTH, BOOT_IMAGE_HEIGHT);
+    const img = ctx.createImageData(TEST_BOOT_IMAGE_WIDTH, TEST_BOOT_IMAGE_HEIGHT);
     const dst = img.data;
     let hasContent = false;
-    for (let y = 0; y < BOOT_IMAGE_HEIGHT; y++) {
-      for (let x = 0; x < BOOT_IMAGE_WIDTH; x++) {
-        const black = !!(bytes[(y >> 3) * BOOT_IMAGE_WIDTH + x] & (1 << (y & 7)));
-        const pi = (y * BOOT_IMAGE_WIDTH + x) * 4;
+    for (let y = 0; y < TEST_BOOT_IMAGE_HEIGHT; y++) {
+      for (let x = 0; x < TEST_BOOT_IMAGE_WIDTH; x++) {
+        const black = !!(bytes[(y >> 3) * TEST_BOOT_IMAGE_WIDTH + x] & (1 << (y & 7)));
+        const pi = (y * TEST_BOOT_IMAGE_WIDTH + x) * 4;
         const v = black ? 0 : 255;
         dst[pi] = dst[pi + 1] = dst[pi + 2] = v;
         dst[pi + 3] = 255;
@@ -938,45 +938,45 @@
   }
 
   function getCustomDataBytes(arrayBuffer) {
-    if (arrayBuffer.byteLength < CODEPLUG_SIZE) {
-      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${CODEPLUG_SIZE}.`);
+    if (arrayBuffer.byteLength < TEST_CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${TEST_CODEPLUG_SIZE}.`);
     }
-    return new Uint8Array(arrayBuffer.slice(CUSTOM_DATA_OFFSET, CUSTOM_DATA_OFFSET + CUSTOM_DATA_LENGTH));
+    return new Uint8Array(arrayBuffer.slice(TEST_CUSTOM_DATA_OFFSET, TEST_CUSTOM_DATA_OFFSET + TEST_CUSTOM_DATA_LENGTH));
   }
 
   function customDataTypeLabel(type) {
-    if (type === CUSTOM_DATA_TYPE_IMAGE) return 'Boot Image';
-    if (type === CUSTOM_DATA_TYPE_MELODY) return 'Boot Melody';
-    if (type === CUSTOM_DATA_TYPE_SATELLITE) return 'Satellite TLE';
-    if (type === CUSTOM_DATA_TYPE_THEME_DAY) return 'Theme Day';
-    if (type === CUSTOM_DATA_TYPE_THEME_NIGHT) return 'Theme Night';
+    if (type === TEST_CUSTOM_DATA_TYPE_IMAGE) return 'Boot Image';
+    if (type === TEST_CUSTOM_DATA_TYPE_MELODY) return 'Boot Melody';
+    if (type === TEST_CUSTOM_DATA_TYPE_SATELLITE) return 'Satellite TLE';
+    if (type === TEST_CUSTOM_DATA_TYPE_THEME_DAY) return 'Theme Day';
+    if (type === TEST_CUSTOM_DATA_TYPE_THEME_NIGHT) return 'Theme Night';
     if (type === 0xFFFFFFFF) return 'Empty';
     return `Type ${formatHexWord(type)}`;
   }
 
   function scanCustomDataBlocks(arrayBuffer) {
     const custom = getCustomDataBytes(arrayBuffer);
-    if (!trimAsciiZeroFF(custom.slice(0, CUSTOM_DATA_MAGIC.length)).startsWith(CUSTOM_DATA_MAGIC)) {
+    if (!trimAsciiZeroFF(custom.slice(0, TEST_CUSTOM_DATA_MAGIC.length)).startsWith(TEST_CUSTOM_DATA_MAGIC)) {
       return { validHeader: false, version: null, blocks: [] };
     }
-    const version = readUint32LEFromBytes(custom, CUSTOM_DATA_MAGIC.length);
+    const version = readUint32LEFromBytes(custom, TEST_CUSTOM_DATA_MAGIC.length);
     const blocks = [];
-    let pos = CUSTOM_DATA_HEADER_SIZE;
-    while (pos + CUSTOM_DATA_BLOCK_HEADER_SIZE <= custom.length) {
+    let pos = TEST_CUSTOM_DATA_HEADER_SIZE;
+    while (pos + TEST_CUSTOM_DATA_BLOCK_HEADER_SIZE <= custom.length) {
       const type = readUint32LEFromBytes(custom, pos);
       const length = readUint32LEFromBytes(custom, pos + 4);
       if (type === 0xFFFFFFFF || length === 0 || length === 0xFFFFFFFF) break;
-      const nextPos = pos + CUSTOM_DATA_BLOCK_HEADER_SIZE + length;
+      const nextPos = pos + TEST_CUSTOM_DATA_BLOCK_HEADER_SIZE + length;
       if (nextPos > custom.length) break;
       blocks.push({
         type,
         typeLabel: customDataTypeLabel(type),
         length,
         customHeaderOffset: pos,
-        customDataOffset: pos + CUSTOM_DATA_BLOCK_HEADER_SIZE,
-        fileHeaderOffset: CUSTOM_DATA_OFFSET + pos,
-        fileDataOffset: CUSTOM_DATA_OFFSET + pos + CUSTOM_DATA_BLOCK_HEADER_SIZE,
-        data: custom.slice(pos + CUSTOM_DATA_BLOCK_HEADER_SIZE, nextPos),
+        customDataOffset: pos + TEST_CUSTOM_DATA_BLOCK_HEADER_SIZE,
+        fileHeaderOffset: TEST_CUSTOM_DATA_OFFSET + pos,
+        fileDataOffset: TEST_CUSTOM_DATA_OFFSET + pos + TEST_CUSTOM_DATA_BLOCK_HEADER_SIZE,
+        data: custom.slice(pos + TEST_CUSTOM_DATA_BLOCK_HEADER_SIZE, nextPos),
       });
       pos = nextPos;
     }
@@ -996,9 +996,9 @@
   function parseSatelliteEntries(blockBytes) {
     const entries = [];
     if (!(blockBytes instanceof Uint8Array)) return entries;
-    for (let index = 0; index < SATELLITE_ENTRY_COUNT; index++) {
-      const base = index * SATELLITE_ENTRY_SIZE;
-      if (base + SATELLITE_ENTRY_SIZE > blockBytes.length) break;
+    for (let index = 0; index < TEST_SATELLITE_ENTRY_COUNT; index++) {
+      const base = index * TEST_SATELLITE_ENTRY_SIZE;
+      if (base + TEST_SATELLITE_ENTRY_SIZE > blockBytes.length) break;
       const name = trimAsciiZeroFF(blockBytes.slice(base, base + 8));
       if (!name) continue;
       const additional = trimAsciiZeroFF(blockBytes.slice(base + 76, base + 100));
@@ -1042,7 +1042,7 @@
       return;
     }
 
-    const blockLines = [`Header @ 0x${CUSTOM_DATA_OFFSET.toString(16).toUpperCase()} magic "${CUSTOM_DATA_MAGIC}" v${scan.version}`];
+    const blockLines = [`Header @ 0x${TEST_CUSTOM_DATA_OFFSET.toString(16).toUpperCase()} magic "${TEST_CUSTOM_DATA_MAGIC}" v${scan.version}`];
     scan.blocks.forEach(block => {
       blockLines.push(
         `${block.typeLabel}: header 0x${block.fileHeaderOffset.toString(16).toUpperCase().padStart(5, '0')} ` +
@@ -1064,8 +1064,8 @@
     }
     customDataBlocksEl.textContent = blockLines.join('\n');
 
-    const bootImageBlock = findCustomDataBlock(buffer, CUSTOM_DATA_TYPE_IMAGE);
-    if (bootImageBlock && bootImageBlock.length >= BOOT_IMAGE_SIZE) {
+    const bootImageBlock = findCustomDataBlock(buffer, TEST_CUSTOM_DATA_TYPE_IMAGE);
+    if (bootImageBlock && bootImageBlock.length >= TEST_BOOT_IMAGE_SIZE) {
       bootImageBlockInfoEl.textContent =
         `Data @ 0x${bootImageBlock.fileDataOffset.toString(16).toUpperCase().padStart(5, '0')} ` +
         `len 0x${bootImageBlock.length.toString(16).toUpperCase()}`;
@@ -1077,8 +1077,8 @@
       setBootImageInspectorStatus('No boot image custom-data block found in the loaded codeplug.', 'muted');
     }
 
-    const satelliteBlock = findCustomDataBlock(buffer, CUSTOM_DATA_TYPE_SATELLITE);
-    if (satelliteBlock && satelliteBlock.length >= SATELLITE_BLOCK_SIZE) {
+    const satelliteBlock = findCustomDataBlock(buffer, TEST_CUSTOM_DATA_TYPE_SATELLITE);
+    if (satelliteBlock && satelliteBlock.length >= TEST_SATELLITE_BLOCK_SIZE) {
       const entries = parseSatelliteEntries(satelliteBlock.data);
       satelliteBlockInfoEl.textContent =
         `Data @ 0x${satelliteBlock.fileDataOffset.toString(16).toUpperCase().padStart(5, '0')} ` +
@@ -1633,11 +1633,11 @@
     const dmrConfirmationOk = !!(storedDmr && storedDmr.applicable && !knownDmr.empty && !knownDmr.error && storedDmr.numeric === knownDmr.value);
     const dmrNewValueOk = !newDmr.empty && !newDmr.error;
     const dmrSameAsCurrent = !!(storedDmr && storedDmr.applicable && dmrNewValueOk && storedDmr.numeric === newDmr.value);
-    const melodyBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_MELODY) : null;
-    const dayThemeBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_THEME_DAY) : null;
-    const nightThemeBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_THEME_NIGHT) : null;
-    const bootImageBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_IMAGE) : null;
-    const satelliteBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_SATELLITE) : null;
+    const melodyBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), TEST_CUSTOM_DATA_TYPE_MELODY) : null;
+    const dayThemeBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), TEST_CUSTOM_DATA_TYPE_THEME_DAY) : null;
+    const nightThemeBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), TEST_CUSTOM_DATA_TYPE_THEME_NIGHT) : null;
+    const bootImageBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), TEST_CUSTOM_DATA_TYPE_IMAGE) : null;
+    const satelliteBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), TEST_CUSTOM_DATA_TYPE_SATELLITE) : null;
 
     readBtn.disabled = busy;
     loadFileBtn.disabled = busy;
@@ -1768,8 +1768,8 @@
       throw new Error('Unsupported file type. Please choose a .g77 or .cdmr codeplug backup.');
     }
     const buffer = await file.arrayBuffer();
-    if (buffer.byteLength !== CODEPLUG_SIZE) {
-      throw new Error(`Codeplug is ${buffer.byteLength} bytes; expected ${CODEPLUG_SIZE}.`);
+    if (buffer.byteLength !== TEST_CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${buffer.byteLength} bytes; expected ${TEST_CODEPLUG_SIZE}.`);
     }
     sessionFreshRadioRead = false;
     sessionBackupSaved = false;
@@ -1860,22 +1860,22 @@
   });
 
   exportMelodyBtn.addEventListener('click', () => {
-    if (!exportLoadedCustomDataBlock(CUSTOM_DATA_TYPE_MELODY, 'boot_melody_block')) return;
+    if (!exportLoadedCustomDataBlock(TEST_CUSTOM_DATA_TYPE_MELODY, 'boot_melody_block')) return;
     setBootImageInspectorStatus('Boot melody block exported.', 'ok');
   });
 
   exportDayThemeBtn.addEventListener('click', () => {
-    if (!exportLoadedCustomDataBlock(CUSTOM_DATA_TYPE_THEME_DAY, 'day_theme_block')) return;
+    if (!exportLoadedCustomDataBlock(TEST_CUSTOM_DATA_TYPE_THEME_DAY, 'day_theme_block')) return;
     setBootImageInspectorStatus('Day theme block exported.', 'ok');
   });
 
   exportNightThemeBtn.addEventListener('click', () => {
-    if (!exportLoadedCustomDataBlock(CUSTOM_DATA_TYPE_THEME_NIGHT, 'night_theme_block')) return;
+    if (!exportLoadedCustomDataBlock(TEST_CUSTOM_DATA_TYPE_THEME_NIGHT, 'night_theme_block')) return;
     setBootImageInspectorStatus('Night theme block exported.', 'ok');
   });
 
   exportBootImageBtn.addEventListener('click', () => {
-    if (!exportLoadedCustomDataBlock(CUSTOM_DATA_TYPE_IMAGE, 'boot_image_block')) return;
+    if (!exportLoadedCustomDataBlock(TEST_CUSTOM_DATA_TYPE_IMAGE, 'boot_image_block')) return;
     setBootImageInspectorStatus('Boot image block exported.', 'ok');
   });
 
@@ -1887,7 +1887,7 @@
   });
 
   exportSatelliteBtn.addEventListener('click', () => {
-    if (!exportLoadedCustomDataBlock(CUSTOM_DATA_TYPE_SATELLITE, 'satellite_keps_block')) return;
+    if (!exportLoadedCustomDataBlock(TEST_CUSTOM_DATA_TYPE_SATELLITE, 'satellite_keps_block')) return;
     setSatelliteStatus('Satellite keps block exported.', 'ok');
   });
 
