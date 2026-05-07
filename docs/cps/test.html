@@ -113,6 +113,27 @@
       font-size: 13px;
       line-height: 1.5;
     }
+    .preview-canvas-wrap {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .preview-canvas {
+      width: 256px;
+      height: 128px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 10px;
+      background: #fff;
+    }
+    .preview-canvas-label {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
   </style>
 </head>
 <body class="cps-layout">
@@ -145,8 +166,8 @@
     <div class="test-shell">
       <div class="test-header">
         <div>
-          <h1 class="test-title">Boot Text, Mode, Callsign, and DMR ID Lab</h1>
-          <p class="test-subtitle">Reads a full codeplug backup, then writes and verifies either the boot text block, the boot display mode, the callsign field, or the confirmed packed-decimal DMR ID field while keeping the scope isolated to this hardware test page.</p>
+          <h1 class="test-title">Isolated Radio Read / Write Lab</h1>
+          <p class="test-subtitle">Keeps hardware-facing work isolated here: proven boot text, boot mode, callsign, and DMR ID writes, plus read-only mapping and backup tools for remaining radio/codeplug areas.</p>
         </div>
         <a href="index.html" class="btn-sm btn-sm-outline">Back to Main CPS</a>
       </div>
@@ -345,6 +366,110 @@
         </div>
       </div>
 
+      <div class="test-grid" style="margin-top: 16px;">
+        <div class="section-card">
+          <div class="section-card-header"><h3>Boot Image / Custom Data</h3></div>
+          <div class="section-card-body">
+            <div class="test-current">
+              <div class="test-current-row">
+                <span class="field-label">Custom Data Blocks</span>
+                <div class="test-current-value test-dump" id="custom-data-blocks">Read a codeplug to inspect the OpenGD77 custom-data layout.</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">Boot Image Block</span>
+                <div class="test-current-value" id="boot-image-block-info">—</div>
+              </div>
+            </div>
+            <div class="preview-canvas-wrap">
+              <canvas id="boot-image-preview-canvas" class="preview-canvas" width="128" height="64"></canvas>
+              <p class="preview-canvas-label">128×64 px shown at 2×</p>
+            </div>
+            <div class="test-actions" style="margin-top: 12px;">
+              <button class="btn-sm btn-sm-outline" id="export-boot-image-btn" type="button" disabled>Export Boot Image Block</button>
+              <button class="btn-sm btn-sm-outline" id="export-custom-data-btn" type="button" disabled>Export Custom Data Area</button>
+            </div>
+            <p class="write-status muted" id="boot-image-inspector-status">Read the radio or load a codeplug file to inspect the boot image custom-data block.</p>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-card-header"><h3>Satellite Data Area</h3></div>
+          <div class="section-card-body">
+            <div class="test-current">
+              <div class="test-current-row">
+                <span class="field-label">Satellite Block</span>
+                <div class="test-current-value" id="satellite-block-info">—</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">Preview</span>
+                <div class="test-current-value test-dump" id="satellite-preview">Read a codeplug to inspect the satellite custom-data block.</div>
+              </div>
+            </div>
+            <div class="test-actions" style="margin-top: 12px;">
+              <button class="btn-sm btn-sm-outline" id="export-satellite-btn" type="button" disabled>Export Satellite Block</button>
+            </div>
+            <p class="write-status muted" id="satellite-status">Read the radio or load a codeplug file to inspect the satellite TLE custom-data block.</p>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-card-header"><h3>Voice Prompts Flash</h3></div>
+          <div class="section-card-body">
+            <div class="test-current">
+              <div class="test-current-row">
+                <span class="field-label">Header / TOC Summary</span>
+                <div class="test-current-value" id="voice-prompts-summary">No radio inspection yet.</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">Preview</span>
+                <div class="test-current-value test-dump" id="voice-prompts-preview">Uses a read-only SPI flash dump. Current STM32 candidate addresses are derived from firmware constants: current header at 0xAF400 and legacy header at 0x100000.</div>
+              </div>
+            </div>
+            <div class="test-actions" style="margin-top: 12px;">
+              <button class="btn-sm btn-sm-read" id="inspect-voice-prompts-btn" type="button">Inspect Active Header / TOC</button>
+              <button class="btn-sm btn-sm-outline" id="inspect-voice-prompts-current-btn" type="button">Dump Current Header / TOC</button>
+              <button class="btn-sm btn-sm-outline" id="inspect-voice-prompts-legacy-btn" type="button">Dump Legacy Header / TOC</button>
+              <button class="btn-sm btn-sm-outline" id="backup-voice-prompts-btn" type="button">Backup Active Voice Prompt Block</button>
+            </div>
+            <p class="write-status muted" id="voice-prompts-status">Read-only voice prompt inspection only. No write path is exposed here.</p>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-card-header"><h3>MCU ROM / Backup Memory</h3></div>
+          <div class="section-card-body">
+            <div class="test-current">
+              <div class="test-current-row">
+                <span class="field-label">MCU ROM Dumps</span>
+                <div class="test-current-value" id="mcu-rom-summary">Test-page-only candidate reads via CPS access area 5. The proven main read path is unchanged.</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">Preview</span>
+                <div class="test-current-value test-dump" id="mcu-rom-preview">Vector table and app-header spot checks help confirm whether MCU ROM access is stable before any larger backup is attempted.</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">Secure Registers</span>
+                <div class="test-current-value" id="secure-registers-summary">Read-only backup test pending. CPS access area 0x0A appears to expose 768 bytes of flash security registers.</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">Secure Registers Preview</span>
+                <div class="test-current-value test-dump" id="secure-registers-preview">Small next protocol test: area 0x0A, start 0x00000000, length 0x0300.</div>
+              </div>
+              <div class="test-current-row">
+                <span class="field-label">Backup SRAM / Registers</span>
+                <div class="test-current-value test-dump" id="backup-memory-summary">BKPSRAM / RTC backup registers are still pending. The current CPS read handler exposes flash, EEPROM, MCU ROM, display, wav, radio info, and flash security registers, but not BKPSRAM or RTC backup registers directly.</div>
+              </div>
+            </div>
+            <div class="test-actions" style="margin-top: 12px;">
+              <button class="btn-sm btn-sm-outline" id="dump-secure-registers-btn" type="button">Backup Secure Registers</button>
+              <button class="btn-sm btn-sm-outline" id="dump-mcu-vector-btn" type="button">Dump MCU Vector Table</button>
+              <button class="btn-sm btn-sm-outline" id="dump-mcu-app-header-btn" type="button">Dump MCU App Header</button>
+            </div>
+            <p class="write-status muted" id="mcu-rom-status">Read-only secure-register backup test plus candidate MCU ROM spot dumps only. Full MCU ROM backup and BKPSRAM / RTC backup-register backup remain pending.</p>
+          </div>
+        </div>
+      </div>
+
       <div class="section-card">
         <div class="section-card-header"><h3>Callsign Notes</h3></div>
         <div class="section-card-body">
@@ -416,19 +541,53 @@
   const TEST_BOOT_TEXT_LINE_LEN = 16;
   const TEST_BOOT_TEXT_TOTAL_LEN = 32;
   const CODEPLUG_SIZE = 0x20000;
+  const CUSTOM_DATA_OFFSET = 0x1EE60;
+  const CUSTOM_DATA_LENGTH = CODEPLUG_SIZE - CUSTOM_DATA_OFFSET;
+  const CUSTOM_DATA_MAGIC = 'OpenGD77';
+  const CUSTOM_DATA_HEADER_SIZE = 12;
+  const CUSTOM_DATA_BLOCK_HEADER_SIZE = 8;
+  const CUSTOM_DATA_TYPE_IMAGE = 0x01;
+  const CUSTOM_DATA_TYPE_MELODY = 0x02;
+  const CUSTOM_DATA_TYPE_SATELLITE = 0x03;
+  const CUSTOM_DATA_TYPE_THEME_DAY = 0x04;
+  const CUSTOM_DATA_TYPE_THEME_NIGHT = 0x05;
+  const BOOT_IMAGE_WIDTH = 128;
+  const BOOT_IMAGE_HEIGHT = 64;
+  const BOOT_IMAGE_SIZE = 1024;
+  const SATELLITE_BLOCK_SIZE = 2520;
+  const SATELLITE_ENTRY_SIZE = 100;
+  const SATELLITE_ENTRY_COUNT = 25;
   const DMR_ID_MIN = 1;
   const DMR_ID_MAX = 16776415;
   const ASCII_RE = /^[\x20-\x7E]*$/;
   const TEST_SERIAL_FILTERS = [{ usbVendorId: 0x1FC9, usbProductId: 0x0094 }];
   const TEST_WRITE_BYTE = 0x58;
   const TEST_READ_FLASH_AREA = 0x01;
+  const TEST_READ_MCU_ROM_AREA = 0x05;
+  const TEST_READ_SECURE_REGISTERS_AREA = 0x0A;
   const TEST_STM32_SECTOR_SIZE = 4096;
+  const VOICE_PROMPTS_MAGIC = 0x00005056;
+  const VOICE_PROMPTS_HEADER_ADDRESS = 0xAF400;
+  const VOICE_PROMPTS_OLD_HEADER_ADDRESS = 0x100000;
+  const VOICE_PROMPTS_HEADER_SIZE = 8;
+  const VOICE_PROMPTS_TOC_ENTRIES = 368;
+  const VOICE_PROMPTS_TOC_BYTES = VOICE_PROMPTS_TOC_ENTRIES * 4;
+  const VOICE_PROMPTS_INSPECT_LENGTH = VOICE_PROMPTS_HEADER_SIZE + VOICE_PROMPTS_TOC_BYTES;
+  const RAW_INSPECT_CHUNK = 0x100;
+  const RAW_INSPECT_DELAY_MS = 10;
+  const MCU_VECTOR_TABLE_START = 0x00000;
+  const MCU_VECTOR_TABLE_LENGTH = 0x0400;
+  const MCU_APP_HEADER_START = 0x0C000;
+  const MCU_APP_HEADER_LENGTH = 0x0400;
+  const SECURE_REGISTERS_START = 0x00000;
+  const SECURE_REGISTERS_LENGTH = 0x0300;
 
   let loadedCodeplug = null;
   let loadedFilename = '';
   let sessionFreshRadioRead = false;
   let sessionBackupSaved = false;
   let busy = false;
+  let lastVoicePromptInspection = null;
 
   const readBtn = document.getElementById('read-btn');
   const loadFileBtn = document.getElementById('load-file-btn');
@@ -472,6 +631,31 @@
   const identityStatusEl = document.getElementById('identity-status');
   const writeDmrIdBtn = document.getElementById('write-dmr-id-btn');
   const dmrIdStatusEl = document.getElementById('dmr-id-status');
+  const customDataBlocksEl = document.getElementById('custom-data-blocks');
+  const bootImageBlockInfoEl = document.getElementById('boot-image-block-info');
+  const bootImagePreviewCanvas = document.getElementById('boot-image-preview-canvas');
+  const exportBootImageBtn = document.getElementById('export-boot-image-btn');
+  const exportCustomDataBtn = document.getElementById('export-custom-data-btn');
+  const bootImageInspectorStatusEl = document.getElementById('boot-image-inspector-status');
+  const satelliteBlockInfoEl = document.getElementById('satellite-block-info');
+  const satellitePreviewEl = document.getElementById('satellite-preview');
+  const exportSatelliteBtn = document.getElementById('export-satellite-btn');
+  const satelliteStatusEl = document.getElementById('satellite-status');
+  const voicePromptsSummaryEl = document.getElementById('voice-prompts-summary');
+  const voicePromptsPreviewEl = document.getElementById('voice-prompts-preview');
+  const inspectVoicePromptsBtn = document.getElementById('inspect-voice-prompts-btn');
+  const inspectVoicePromptsCurrentBtn = document.getElementById('inspect-voice-prompts-current-btn');
+  const inspectVoicePromptsLegacyBtn = document.getElementById('inspect-voice-prompts-legacy-btn');
+  const backupVoicePromptsBtn = document.getElementById('backup-voice-prompts-btn');
+  const voicePromptsStatusEl = document.getElementById('voice-prompts-status');
+  const mcuRomSummaryEl = document.getElementById('mcu-rom-summary');
+  const mcuRomPreviewEl = document.getElementById('mcu-rom-preview');
+  const secureRegistersSummaryEl = document.getElementById('secure-registers-summary');
+  const secureRegistersPreviewEl = document.getElementById('secure-registers-preview');
+  const dumpSecureRegistersBtn = document.getElementById('dump-secure-registers-btn');
+  const dumpMcuVectorBtn = document.getElementById('dump-mcu-vector-btn');
+  const dumpMcuAppHeaderBtn = document.getElementById('dump-mcu-app-header-btn');
+  const mcuRomStatusEl = document.getElementById('mcu-rom-status');
 
   function makeStamp() {
     const d = new Date();
@@ -525,6 +709,26 @@
   function setDmrIdStatus(msg, cls = 'muted') {
     dmrIdStatusEl.textContent = msg;
     dmrIdStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
+  }
+
+  function setBootImageInspectorStatus(msg, cls = 'muted') {
+    bootImageInspectorStatusEl.textContent = msg;
+    bootImageInspectorStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
+  }
+
+  function setSatelliteStatus(msg, cls = 'muted') {
+    satelliteStatusEl.textContent = msg;
+    satelliteStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
+  }
+
+  function setVoicePromptsStatus(msg, cls = 'muted') {
+    voicePromptsStatusEl.textContent = msg;
+    voicePromptsStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
+  }
+
+  function setMcuRomStatus(msg, cls = 'muted') {
+    mcuRomStatusEl.textContent = msg;
+    mcuRomStatusEl.className = 'write-status' + (cls ? ' ' + cls : '');
   }
 
   function setProgress(pct, msg = '') {
@@ -640,6 +844,10 @@
     return Array.from(bytes, value => formatHexByte(value)).join(' ');
   }
 
+  function formatHexWord(value) {
+    return `0x${(value >>> 0).toString(16).toUpperCase().padStart(8, '0')}`;
+  }
+
   function formatAsciiBytes(bytes) {
     return Array.from(bytes, value => {
       if (value >= 0x20 && value <= 0x7E) return String.fromCharCode(value);
@@ -667,6 +875,540 @@
       end -= 1;
     }
     return formatAsciiBytes(bytes.slice(0, end));
+  }
+
+  function trimAsciiZeroFF(bytes) {
+    const chars = [];
+    for (const value of bytes) {
+      if (value === 0x00 || value === 0xFF) break;
+      chars.push(value >= 0x20 && value <= 0x7E ? String.fromCharCode(value) : '.');
+    }
+    return chars.join('').trim();
+  }
+
+  function readUint32LEFromBytes(bytes, offset) {
+    return (
+      bytes[offset] |
+      (bytes[offset + 1] << 8) |
+      (bytes[offset + 2] << 16) |
+      (bytes[offset + 3] << 24)
+    ) >>> 0;
+  }
+
+  function hexdumpBytes(bytes, startAddress = 0, maxBytes = bytes.length) {
+    const out = [];
+    const limit = Math.min(bytes.length, maxBytes);
+    for (let offset = 0; offset < limit; offset += 16) {
+      const row = bytes.slice(offset, offset + 16);
+      const addr = (startAddress + offset).toString(16).toUpperCase().padStart(5, '0');
+      const hex = Array.from(row, value => value.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+      const ascii = formatAsciiBytes(row);
+      out.push(`${addr}: ${hex.padEnd(47, ' ')}  ${ascii}`);
+    }
+    return out.join('\n');
+  }
+
+  function renderBootBytesToCanvas(bytes, canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!(bytes instanceof Uint8Array) || bytes.length < BOOT_IMAGE_SIZE) {
+      return false;
+    }
+    const img = ctx.createImageData(BOOT_IMAGE_WIDTH, BOOT_IMAGE_HEIGHT);
+    const dst = img.data;
+    let hasContent = false;
+    for (let y = 0; y < BOOT_IMAGE_HEIGHT; y++) {
+      for (let x = 0; x < BOOT_IMAGE_WIDTH; x++) {
+        const black = !!(bytes[(y >> 3) * BOOT_IMAGE_WIDTH + x] & (1 << (y & 7)));
+        const pi = (y * BOOT_IMAGE_WIDTH + x) * 4;
+        const v = black ? 0 : 255;
+        dst[pi] = dst[pi + 1] = dst[pi + 2] = v;
+        dst[pi + 3] = 255;
+        if (black) hasContent = true;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return hasContent;
+  }
+
+  function getCustomDataBytes(arrayBuffer) {
+    if (arrayBuffer.byteLength < CODEPLUG_SIZE) {
+      throw new Error(`Codeplug is ${arrayBuffer.byteLength} bytes — expected ${CODEPLUG_SIZE}.`);
+    }
+    return new Uint8Array(arrayBuffer.slice(CUSTOM_DATA_OFFSET, CUSTOM_DATA_OFFSET + CUSTOM_DATA_LENGTH));
+  }
+
+  function customDataTypeLabel(type) {
+    if (type === CUSTOM_DATA_TYPE_IMAGE) return 'Boot Image';
+    if (type === CUSTOM_DATA_TYPE_MELODY) return 'Boot Melody';
+    if (type === CUSTOM_DATA_TYPE_SATELLITE) return 'Satellite TLE';
+    if (type === CUSTOM_DATA_TYPE_THEME_DAY) return 'Theme Day';
+    if (type === CUSTOM_DATA_TYPE_THEME_NIGHT) return 'Theme Night';
+    if (type === 0xFFFFFFFF) return 'Empty';
+    return `Type ${formatHexWord(type)}`;
+  }
+
+  function scanCustomDataBlocks(arrayBuffer) {
+    const custom = getCustomDataBytes(arrayBuffer);
+    if (!trimAsciiZeroFF(custom.slice(0, CUSTOM_DATA_MAGIC.length)).startsWith(CUSTOM_DATA_MAGIC)) {
+      return { validHeader: false, version: null, blocks: [] };
+    }
+    const version = readUint32LEFromBytes(custom, CUSTOM_DATA_MAGIC.length);
+    const blocks = [];
+    let pos = CUSTOM_DATA_HEADER_SIZE;
+    while (pos + CUSTOM_DATA_BLOCK_HEADER_SIZE <= custom.length) {
+      const type = readUint32LEFromBytes(custom, pos);
+      const length = readUint32LEFromBytes(custom, pos + 4);
+      if (type === 0xFFFFFFFF || length === 0 || length === 0xFFFFFFFF) break;
+      const nextPos = pos + CUSTOM_DATA_BLOCK_HEADER_SIZE + length;
+      if (nextPos > custom.length) break;
+      blocks.push({
+        type,
+        typeLabel: customDataTypeLabel(type),
+        length,
+        customHeaderOffset: pos,
+        customDataOffset: pos + CUSTOM_DATA_BLOCK_HEADER_SIZE,
+        fileHeaderOffset: CUSTOM_DATA_OFFSET + pos,
+        fileDataOffset: CUSTOM_DATA_OFFSET + pos + CUSTOM_DATA_BLOCK_HEADER_SIZE,
+        data: custom.slice(pos + CUSTOM_DATA_BLOCK_HEADER_SIZE, nextPos),
+      });
+      pos = nextPos;
+    }
+    return { validHeader: true, version, blocks };
+  }
+
+  function findCustomDataBlock(arrayBuffer, type) {
+    const scan = scanCustomDataBlocks(arrayBuffer);
+    return scan.blocks.find(block => block.type === type) || null;
+  }
+
+  function formatHzMaybe(value) {
+    if (!Number.isFinite(value) || value <= 0 || value === 0xFFFFFFFF) return '—';
+    return `${(value / 1000000).toFixed(5)} MHz`;
+  }
+
+  function parseSatelliteEntries(blockBytes) {
+    const entries = [];
+    if (!(blockBytes instanceof Uint8Array)) return entries;
+    for (let index = 0; index < SATELLITE_ENTRY_COUNT; index++) {
+      const base = index * SATELLITE_ENTRY_SIZE;
+      if (base + SATELLITE_ENTRY_SIZE > blockBytes.length) break;
+      const name = trimAsciiZeroFF(blockBytes.slice(base, base + 8));
+      if (!name) continue;
+      const additional = trimAsciiZeroFF(blockBytes.slice(base + 76, base + 100));
+      entries.push({
+        number: index + 1,
+        name,
+        rx1: readUint32LEFromBytes(blockBytes, base + 48),
+        tx1: readUint32LEFromBytes(blockBytes, base + 52),
+        rx2: readUint32LEFromBytes(blockBytes, base + 60),
+        tx2: readUint32LEFromBytes(blockBytes, base + 64),
+        rx3: readUint32LEFromBytes(blockBytes, base + 68),
+        tx3: readUint32LEFromBytes(blockBytes, base + 72),
+        additional,
+      });
+    }
+    return entries;
+  }
+
+  function renderMappingInspectors(parser) {
+    if (!parser) {
+      customDataBlocksEl.textContent = 'Read a codeplug to inspect the OpenGD77 custom-data layout.';
+      bootImageBlockInfoEl.textContent = '—';
+      satelliteBlockInfoEl.textContent = '—';
+      satellitePreviewEl.textContent = 'Read a codeplug to inspect the satellite custom-data block.';
+      renderBootBytesToCanvas(new Uint8Array(0), bootImagePreviewCanvas);
+      setBootImageInspectorStatus('Read the radio or load a codeplug file to inspect the boot image custom-data block.', 'muted');
+      setSatelliteStatus('Read the radio or load a codeplug file to inspect the satellite TLE custom-data block.', 'muted');
+      return;
+    }
+
+    const buffer = parser.toArrayBuffer();
+    const scan = scanCustomDataBlocks(buffer);
+    if (!scan.validHeader) {
+      customDataBlocksEl.textContent = 'OpenGD77 custom-data header not found at 0x1EE60.';
+      bootImageBlockInfoEl.textContent = 'No custom-data header';
+      satelliteBlockInfoEl.textContent = 'No custom-data header';
+      satellitePreviewEl.textContent = 'No satellite custom-data block found.';
+      renderBootBytesToCanvas(new Uint8Array(0), bootImagePreviewCanvas);
+      setBootImageInspectorStatus('This codeplug does not contain an OpenGD77 custom-data header.', 'muted');
+      setSatelliteStatus('This codeplug does not contain an OpenGD77 custom-data header.', 'muted');
+      return;
+    }
+
+    const blockLines = [`Header @ 0x${CUSTOM_DATA_OFFSET.toString(16).toUpperCase()} magic "${CUSTOM_DATA_MAGIC}" v${scan.version}`];
+    scan.blocks.forEach(block => {
+      blockLines.push(
+        `${block.typeLabel}: header 0x${block.fileHeaderOffset.toString(16).toUpperCase().padStart(5, '0')} ` +
+        `data 0x${block.fileDataOffset.toString(16).toUpperCase().padStart(5, '0')} len 0x${block.length.toString(16).toUpperCase()}`
+      );
+    });
+    const observedLines = [
+      'Observed layout reference:',
+      '0x1EE6C type 2 melody len 0x200',
+      '0x1F074 type 3 satellite len 0x9D8',
+      '0x1FA54 type 4 day theme len 0x40',
+      '0x1FA9C type 5 night theme len 0x40',
+      '0x1FAE4 type 1 boot image len 0x400',
+      '0x1FEEC uninitialised 0xFF area',
+    ];
+    if (scan.blocks.length > 0) {
+      blockLines.push('');
+      blockLines.push(...observedLines);
+    }
+    customDataBlocksEl.textContent = blockLines.join('\n');
+
+    const bootImageBlock = findCustomDataBlock(buffer, CUSTOM_DATA_TYPE_IMAGE);
+    if (bootImageBlock && bootImageBlock.length >= BOOT_IMAGE_SIZE) {
+      bootImageBlockInfoEl.textContent =
+        `Data @ 0x${bootImageBlock.fileDataOffset.toString(16).toUpperCase().padStart(5, '0')} ` +
+        `len 0x${bootImageBlock.length.toString(16).toUpperCase()}`;
+      renderBootBytesToCanvas(bootImageBlock.data, bootImagePreviewCanvas);
+      setBootImageInspectorStatus('Boot image custom-data block is present and ready for read-only export.', 'ok');
+    } else {
+      bootImageBlockInfoEl.textContent = 'No boot image block found';
+      renderBootBytesToCanvas(new Uint8Array(0), bootImagePreviewCanvas);
+      setBootImageInspectorStatus('No boot image custom-data block found in the loaded codeplug.', 'muted');
+    }
+
+    const satelliteBlock = findCustomDataBlock(buffer, CUSTOM_DATA_TYPE_SATELLITE);
+    if (satelliteBlock && satelliteBlock.length >= SATELLITE_BLOCK_SIZE) {
+      const entries = parseSatelliteEntries(satelliteBlock.data);
+      satelliteBlockInfoEl.textContent =
+        `Data @ 0x${satelliteBlock.fileDataOffset.toString(16).toUpperCase().padStart(5, '0')} ` +
+        `len 0x${satelliteBlock.length.toString(16).toUpperCase()} • entries ${entries.length}`;
+      if (entries.length > 0) {
+        satellitePreviewEl.textContent = entries.slice(0, 8).map(entry =>
+          `#${entry.number} ${entry.name} | Voice ${formatHzMaybe(entry.rx1)} / ${formatHzMaybe(entry.tx1)} | ` +
+          `APRS ${formatHzMaybe(entry.rx2)} / ${formatHzMaybe(entry.tx2)} | ` +
+          `Other ${formatHzMaybe(entry.rx3)} / ${formatHzMaybe(entry.tx3)}${entry.additional ? ` | ${entry.additional}` : ''}`
+        ).join('\n');
+      } else {
+        satellitePreviewEl.textContent = 'Satellite block present, but no populated entries were found.';
+      }
+      setSatelliteStatus('Satellite TLE custom-data block is present and ready for read-only export.', 'ok');
+    } else {
+      satelliteBlockInfoEl.textContent = 'No satellite block found';
+      satellitePreviewEl.textContent = 'No satellite custom-data block found.';
+      setSatelliteStatus('No satellite TLE custom-data block found in the loaded codeplug.', 'muted');
+    }
+  }
+
+  async function cplabDumpRange(options, onProgress) {
+    const area = Number(options.area);
+    const start = Number(options.start) >>> 0;
+    const length = Number(options.length) >>> 0;
+    const chunkSize = Number(options.chunkSize) >>> 0;
+    const interReadDelayMs = Number(options.interReadDelayMs);
+
+    if (!(area === 1 || area === 2 || area === 5 || area === 10)) {
+      throw new Error('Area must be 1, 2, 5, or 10 for this test-page dump helper.');
+    }
+    if (length === 0) throw new Error('Length must be greater than zero.');
+    if (chunkSize === 0) throw new Error('Chunk size must be greater than zero.');
+    if (chunkSize > 2045) throw new Error('Chunk size must be <= 0x7FD.');
+    if (!Number.isFinite(interReadDelayMs) || interReadDelayMs < 0) {
+      throw new Error('Inter-read delay must be 0 or greater.');
+    }
+    if (!navigator.serial) {
+      throw new Error('Web Serial API not available. Use Chrome or Edge 89+.');
+    }
+
+    let session = null;
+    const chunks = [];
+    const totalChunks = Math.ceil(length / chunkSize);
+    let bytesRead = 0;
+    let failedAt = null;
+    let errorMessage = null;
+
+    try {
+      session = await cprdOpenSerialSession(TEST_SERIAL_FILTERS, 'cplabDumpRange');
+      session.writer.__cprdSession = session;
+      const { writer, acc } = session;
+      acc.resetState({ label: 'cplab session start', clearRecent: true, logDrop: false });
+      await cprdPrimeRadioConnection(writer, acc);
+      const radioInfo = await cprdReadRadioInfo(writer, acc);
+
+      for (let offset = 0, chunkIndex = 0; offset < length; offset += chunkSize, chunkIndex++) {
+        const len = Math.min(chunkSize, length - offset);
+        const address = (start + offset) >>> 0;
+        try {
+          const data = await cprdReadChunk(writer, acc, area, address, len, interReadDelayMs);
+          if (!data) {
+            failedAt = { address, offset, length: len, chunkIndex };
+            errorMessage = `Read failed at area=${area} addr=0x${address.toString(16).toUpperCase()} len=0x${len.toString(16).toUpperCase()}`;
+            break;
+          }
+          chunks.push(data);
+          bytesRead += data.length;
+        } catch (err) {
+          failedAt = { address, offset, length: len, chunkIndex };
+          errorMessage = err.message || String(err);
+          break;
+        }
+
+        const pct = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+        onProgress?.({
+          pct,
+          msg: `Reading area ${area} @ 0x${address.toString(16).toUpperCase().padStart(5, '0')} len=0x${len.toString(16).toUpperCase()} (${chunkIndex + 1}/${totalChunks})…`,
+        });
+      }
+
+      const out = new Uint8Array(bytesRead);
+      let pos = 0;
+      for (const chunk of chunks) {
+        out.set(chunk, pos);
+        pos += chunk.length;
+      }
+
+      return {
+        buffer: out.buffer,
+        bytesRead,
+        requestedLength: length,
+        failedAt,
+        errorMessage,
+        complete: bytesRead === length,
+        metadata: {
+          area,
+          start,
+          length,
+          chunkSize,
+          interReadDelayMs,
+          version: window.__CPRD_VERSION__ || 'radio-read.js',
+          radioInfo,
+        },
+      };
+    } finally {
+      await cprdCloseSerialSession(session, 'test lab raw dump completed');
+    }
+  }
+
+  function downloadDumpArtifacts(baseName, result, metaLines = []) {
+    if (!(result?.bytesRead > 0)) {
+      throw new Error('No bytes were read.');
+    }
+    downloadBlob(`${baseName}.bin`, new Blob([result.buffer], { type: 'application/octet-stream' }));
+    const metaText = [
+      `area=${result.metadata.area}`,
+      `start=0x${result.metadata.start.toString(16).toUpperCase()}`,
+      `length=0x${result.metadata.length.toString(16).toUpperCase()}`,
+      `chunk=0x${result.metadata.chunkSize.toString(16).toUpperCase()}`,
+      `delay_ms=${result.metadata.interReadDelayMs}`,
+      `bytes_read=0x${result.bytesRead.toString(16).toUpperCase()}`,
+      `complete=${result.complete ? 'yes' : 'no'}`,
+      result.failedAt
+        ? `failed_at=0x${result.failedAt.address.toString(16).toUpperCase()}`
+        : 'failed_at=none',
+      result.errorMessage ? `error=${result.errorMessage}` : 'error=none',
+      ...metaLines,
+    ].join('\n') + '\n';
+    downloadBlob(`${baseName}.txt`, new Blob([metaText], { type: 'text/plain;charset=utf-8' }));
+  }
+
+  function parseVoicePromptInspection(buffer, address, label) {
+    const bytes = new Uint8Array(buffer);
+    const magic = readUint32LEFromBytes(bytes, 0);
+    const version = readUint32LEFromBytes(bytes, 4);
+    const toc = [];
+    let nonZeroEntries = 0;
+    let maxOffset = 0;
+    for (let i = 0; i < VOICE_PROMPTS_TOC_ENTRIES; i++) {
+      const offset = readUint32LEFromBytes(bytes, VOICE_PROMPTS_HEADER_SIZE + (i * 4));
+      toc.push(offset);
+      if (offset > 0 && offset !== 0xFFFFFFFF) {
+        nonZeroEntries += 1;
+        if (offset > maxOffset) maxOffset = offset;
+      }
+    }
+    const valid = magic === VOICE_PROMPTS_MAGIC;
+    return {
+      valid,
+      address,
+      label,
+      magic,
+      version,
+      toc,
+      nonZeroEntries,
+      maxOffset,
+      totalLength: VOICE_PROMPTS_INSPECT_LENGTH + maxOffset,
+      preview: hexdumpBytes(bytes, address, Math.min(bytes.length, 256)),
+    };
+  }
+
+  async function runReadOnlyDump(statusPrefix, task) {
+    busy = true;
+    resetProgress();
+    setStatus(statusPrefix, 'muted');
+    refreshButtons();
+    try {
+      return await task();
+    } finally {
+      busy = false;
+      refreshButtons();
+    }
+  }
+
+  async function readVoicePromptHeaderFromRadio(address, label, { saveArtifacts = true } = {}) {
+    const result = await cplabDumpRange({
+      area: TEST_READ_FLASH_AREA,
+      start: address,
+      length: VOICE_PROMPTS_INSPECT_LENGTH,
+      chunkSize: RAW_INSPECT_CHUNK,
+      interReadDelayMs: RAW_INSPECT_DELAY_MS,
+    }, ({ pct, msg }) => {
+      setProgress(pct, msg || `Reading ${label}…`);
+    });
+    if (!(result.bytesRead > 0)) {
+      throw new Error(result.errorMessage || 'Voice prompt header dump returned no data.');
+    }
+    const parsed = parseVoicePromptInspection(result.buffer, address, label);
+    lastVoicePromptInspection = parsed;
+    voicePromptsSummaryEl.textContent =
+      `${label}: magic ${formatHexWord(parsed.magic)} version ${parsed.version} ` +
+      `non-zero TOC entries ${parsed.nonZeroEntries} max data offset 0x${parsed.maxOffset.toString(16).toUpperCase()}`;
+    voicePromptsPreviewEl.textContent = parsed.preview;
+    if (saveArtifacts) {
+      const stamp = makeStamp();
+      const baseName = `voice_prompts_${label.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_header_toc_${stamp}`;
+      downloadDumpArtifacts(baseName, result, [
+        `label=${label}`,
+        `magic=${formatHexWord(parsed.magic)}`,
+        `version=${parsed.version}`,
+        `nonzero_toc_entries=${parsed.nonZeroEntries}`,
+        `max_data_offset=0x${parsed.maxOffset.toString(16).toUpperCase()}`,
+      ]);
+    }
+    progressFill.style.width = '100%';
+    progressLabel.textContent = '100%';
+    setStatus(`${label} dump complete.`, parsed.valid ? 'ok' : 'warn');
+    setVoicePromptsStatus(
+      parsed.valid
+        ? `${label} header / TOC read succeeded.`
+        : `${label} read succeeded, but the magic/version do not match the expected voice-prompt header.`,
+      parsed.valid ? 'ok' : 'warn'
+    );
+    return { result, parsed };
+  }
+
+  async function dumpVoicePromptHeader(address, label, { saveArtifacts = true } = {}) {
+    return runReadOnlyDump(`Reading ${label}…`, async () =>
+      readVoicePromptHeaderFromRadio(address, label, { saveArtifacts })
+    );
+  }
+
+  async function inspectActiveVoicePrompts() {
+    const current = await readVoicePromptHeaderFromRadio(VOICE_PROMPTS_HEADER_ADDRESS, 'current', { saveArtifacts: false });
+    if (current.parsed.valid) {
+      setVoicePromptsStatus('Active voice prompts appear to use the current header location.', 'ok');
+      return current.parsed;
+    }
+    const legacy = await readVoicePromptHeaderFromRadio(VOICE_PROMPTS_OLD_HEADER_ADDRESS, 'legacy', { saveArtifacts: false });
+    if (legacy.parsed.valid) {
+      setVoicePromptsStatus('Active voice prompts appear to use the legacy header location.', 'ok');
+      return legacy.parsed;
+    }
+    setVoicePromptsStatus('Neither current nor legacy voice-prompt header matched the expected magic/version.', 'warn');
+    return legacy.parsed;
+  }
+
+  async function backupActiveVoicePromptBlock() {
+    return runReadOnlyDump('Reading active voice prompt block…', async () => {
+      const inspection = await inspectActiveVoicePrompts();
+      if (!inspection.valid) {
+        throw new Error('Active voice prompt header did not validate at either known location.');
+      }
+      const result = await cplabDumpRange({
+        area: TEST_READ_FLASH_AREA,
+        start: inspection.address,
+        length: inspection.totalLength,
+        chunkSize: 0x200,
+        interReadDelayMs: RAW_INSPECT_DELAY_MS,
+      }, ({ pct, msg }) => {
+        setProgress(pct, msg || 'Reading active voice prompt block…');
+      });
+      if (!(result.bytesRead > 0)) {
+        throw new Error(result.errorMessage || 'Voice prompt block dump returned no data.');
+      }
+      const stamp = makeStamp();
+      const baseName = `voice_prompts_${inspection.label}_full_${stamp}`;
+      downloadDumpArtifacts(baseName, result, [
+        `label=${inspection.label}`,
+        `magic=${formatHexWord(inspection.magic)}`,
+        `version=${inspection.version}`,
+        `nonzero_toc_entries=${inspection.nonZeroEntries}`,
+        `max_data_offset=0x${inspection.maxOffset.toString(16).toUpperCase()}`,
+        `expected_total_length=0x${inspection.totalLength.toString(16).toUpperCase()}`,
+      ]);
+      voicePromptsSummaryEl.textContent =
+        `${inspection.label}: backed up 0x${result.bytesRead.toString(16).toUpperCase()} bytes ` +
+        `from 0x${inspection.address.toString(16).toUpperCase()}`;
+      progressFill.style.width = '100%';
+      progressLabel.textContent = '100%';
+      setStatus(`Saved ${baseName}.bin`, 'ok');
+      setVoicePromptsStatus('Voice prompt block backup saved.', 'ok');
+    });
+  }
+
+  async function dumpMcuRomRegion(start, length, label) {
+    return runReadOnlyDump(`Reading ${label}…`, async () => {
+      const result = await cplabDumpRange({
+        area: TEST_READ_MCU_ROM_AREA,
+        start,
+        length,
+        chunkSize: RAW_INSPECT_CHUNK,
+        interReadDelayMs: RAW_INSPECT_DELAY_MS,
+      }, ({ pct, msg }) => {
+        setProgress(pct, msg || `Reading ${label}…`);
+      });
+      if (!(result.bytesRead > 0)) {
+        throw new Error(result.errorMessage || `${label} returned no data.`);
+      }
+      const bytes = new Uint8Array(result.buffer);
+      const words = [];
+      for (let i = 0; i + 3 < Math.min(bytes.length, 16); i += 4) {
+        words.push(formatHexWord(readUint32LEFromBytes(bytes, i)));
+      }
+      mcuRomSummaryEl.textContent =
+        `${label}: area 5 start 0x${start.toString(16).toUpperCase()} len 0x${length.toString(16).toUpperCase()} ` +
+        `first words ${words.join(' ')}`;
+      mcuRomPreviewEl.textContent = hexdumpBytes(bytes, start, Math.min(bytes.length, 256));
+      const stamp = makeStamp();
+      const baseName = `mcu_rom_${label.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${stamp}`;
+      downloadDumpArtifacts(baseName, result, [`label=${label}`]);
+      progressFill.style.width = '100%';
+      progressLabel.textContent = '100%';
+      setStatus(`Saved ${baseName}.bin`, 'ok');
+      setMcuRomStatus(`${label} dump saved. Treat area 5 as test-page-only until hardware behavior is boringly repeatable.`, 'ok');
+    });
+  }
+
+  async function dumpSecureRegisters() {
+    return runReadOnlyDump('Reading secure registers…', async () => {
+      const result = await cplabDumpRange({
+        area: TEST_READ_SECURE_REGISTERS_AREA,
+        start: SECURE_REGISTERS_START,
+        length: SECURE_REGISTERS_LENGTH,
+        chunkSize: 0x100,
+        interReadDelayMs: RAW_INSPECT_DELAY_MS,
+      }, ({ pct, msg }) => {
+        setProgress(pct, msg || 'Reading secure registers…');
+      });
+      if (!(result.bytesRead > 0)) {
+        throw new Error(result.errorMessage || 'Secure-register dump returned no data.');
+      }
+      const bytes = new Uint8Array(result.buffer);
+      secureRegistersSummaryEl.textContent =
+        `Area 0x0A start 0x${SECURE_REGISTERS_START.toString(16).toUpperCase()} len 0x${SECURE_REGISTERS_LENGTH.toString(16).toUpperCase()} ` +
+        `read 0x${result.bytesRead.toString(16).toUpperCase()} bytes`;
+      secureRegistersPreviewEl.textContent = hexdumpBytes(bytes, SECURE_REGISTERS_START, Math.min(bytes.length, 256));
+      const stamp = makeStamp();
+      const baseName = `secure_registers_${stamp}`;
+      downloadDumpArtifacts(baseName, result, ['label=secure_registers']);
+      progressFill.style.width = '100%';
+      progressLabel.textContent = '100%';
+      setStatus(`Saved ${baseName}.bin`, 'ok');
+      setMcuRomStatus('Secure-register backup saved. BKPSRAM / RTC backup registers still require separate protocol confirmation.', 'ok');
+    });
   }
 
   function decodePackedDecimalVariant(bytes) {
@@ -877,6 +1619,8 @@
     const dmrConfirmationOk = !!(storedDmr && storedDmr.applicable && !knownDmr.empty && !knownDmr.error && storedDmr.numeric === knownDmr.value);
     const dmrNewValueOk = !newDmr.empty && !newDmr.error;
     const dmrSameAsCurrent = !!(storedDmr && storedDmr.applicable && dmrNewValueOk && storedDmr.numeric === newDmr.value);
+    const bootImageBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_IMAGE) : null;
+    const satelliteBlock = hasCodeplug ? findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_SATELLITE) : null;
 
     readBtn.disabled = busy;
     loadFileBtn.disabled = busy;
@@ -886,6 +1630,16 @@
     writeBootModeBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !bootModeSelected;
     writeCallsignBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !callsignAsciiOk;
     writeDmrIdBtn.disabled = busy || !hasCodeplug || !sessionFreshRadioRead || !sessionBackupSaved || !dmrConfirmationOk || !dmrNewValueOk || dmrSameAsCurrent;
+    exportBootImageBtn.disabled = busy || !bootImageBlock;
+    exportCustomDataBtn.disabled = busy || !hasCodeplug;
+    exportSatelliteBtn.disabled = busy || !satelliteBlock;
+    inspectVoicePromptsBtn.disabled = busy;
+    inspectVoicePromptsCurrentBtn.disabled = busy;
+    inspectVoicePromptsLegacyBtn.disabled = busy;
+    backupVoicePromptsBtn.disabled = busy;
+    dumpSecureRegistersBtn.disabled = busy;
+    dumpMcuVectorBtn.disabled = busy;
+    dumpMcuAppHeaderBtn.disabled = busy;
 
     if (!hasCodeplug) {
       setEditorStatus('Read the radio to load the current boot text.', 'muted');
@@ -969,6 +1723,7 @@
     renderCurrentBootText(loadedCodeplug);
     renderCurrentCallsign(loadedCodeplug);
     renderIdentityInspector(loadedCodeplug);
+    renderMappingInspectors(loadedCodeplug);
     if (syncEditor) {
       const text = loadedCodeplug.bootText;
       editLine1El.value = text.line1;
@@ -1060,6 +1815,136 @@
     sessionBackupSaved = true;
     setStatus('Backup saved. You may now write boot text only, boot mode only, callsign only, or DMR ID only.', 'ok');
     refreshButtons();
+  });
+
+  exportBootImageBtn.addEventListener('click', () => {
+    if (!loadedCodeplug) return;
+    const block = findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_IMAGE);
+    if (!block) return;
+    downloadBlob(`boot_image_block_${makeStamp()}.bin`, new Blob([block.data], { type: 'application/octet-stream' }));
+    setBootImageInspectorStatus('Boot image block exported.', 'ok');
+  });
+
+  exportCustomDataBtn.addEventListener('click', () => {
+    if (!loadedCodeplug) return;
+    const custom = getCustomDataBytes(loadedCodeplug.toArrayBuffer());
+    downloadBlob(`custom_data_area_${makeStamp()}.bin`, new Blob([custom], { type: 'application/octet-stream' }));
+    setBootImageInspectorStatus('Full custom-data area exported.', 'ok');
+  });
+
+  exportSatelliteBtn.addEventListener('click', () => {
+    if (!loadedCodeplug) return;
+    const block = findCustomDataBlock(loadedCodeplug.toArrayBuffer(), CUSTOM_DATA_TYPE_SATELLITE);
+    if (!block) return;
+    downloadBlob(`satellite_tle_block_${makeStamp()}.bin`, new Blob([block.data], { type: 'application/octet-stream' }));
+    setSatelliteStatus('Satellite TLE block exported.', 'ok');
+  });
+
+  inspectVoicePromptsBtn.addEventListener('click', async () => {
+    try {
+      await runReadOnlyDump('Inspecting active voice prompts…', async () => {
+        await inspectActiveVoicePrompts();
+      });
+    } catch (err) {
+      resetProgress();
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.', 'muted');
+        setVoicePromptsStatus('No device selected.', 'muted');
+      } else {
+        setStatus(`Voice prompt inspection failed: ${err.message}`, 'err');
+        setVoicePromptsStatus(`Inspection failed: ${err.message}`, 'err');
+      }
+    }
+  });
+
+  inspectVoicePromptsCurrentBtn.addEventListener('click', async () => {
+    try {
+      await dumpVoicePromptHeader(VOICE_PROMPTS_HEADER_ADDRESS, 'current', { saveArtifacts: true });
+    } catch (err) {
+      resetProgress();
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.', 'muted');
+        setVoicePromptsStatus('No device selected.', 'muted');
+      } else {
+        setStatus(`Voice prompt dump failed: ${err.message}`, 'err');
+        setVoicePromptsStatus(`Current header / TOC dump failed: ${err.message}`, 'err');
+      }
+    }
+  });
+
+  inspectVoicePromptsLegacyBtn.addEventListener('click', async () => {
+    try {
+      await dumpVoicePromptHeader(VOICE_PROMPTS_OLD_HEADER_ADDRESS, 'legacy', { saveArtifacts: true });
+    } catch (err) {
+      resetProgress();
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.', 'muted');
+        setVoicePromptsStatus('No device selected.', 'muted');
+      } else {
+        setStatus(`Voice prompt dump failed: ${err.message}`, 'err');
+        setVoicePromptsStatus(`Legacy header / TOC dump failed: ${err.message}`, 'err');
+      }
+    }
+  });
+
+  backupVoicePromptsBtn.addEventListener('click', async () => {
+    try {
+      await backupActiveVoicePromptBlock();
+    } catch (err) {
+      resetProgress();
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.', 'muted');
+        setVoicePromptsStatus('No device selected.', 'muted');
+      } else {
+        setStatus(`Voice prompt backup failed: ${err.message}`, 'err');
+        setVoicePromptsStatus(`Backup failed: ${err.message}`, 'err');
+      }
+    }
+  });
+
+  dumpSecureRegistersBtn.addEventListener('click', async () => {
+    try {
+      await dumpSecureRegisters();
+    } catch (err) {
+      resetProgress();
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.', 'muted');
+        setMcuRomStatus('No device selected.', 'muted');
+      } else {
+        setStatus(`Secure-register backup failed: ${err.message}`, 'err');
+        setMcuRomStatus(`Secure-register backup failed: ${err.message}`, 'err');
+      }
+    }
+  });
+
+  dumpMcuVectorBtn.addEventListener('click', async () => {
+    try {
+      await dumpMcuRomRegion(MCU_VECTOR_TABLE_START, MCU_VECTOR_TABLE_LENGTH, 'vector_table');
+    } catch (err) {
+      resetProgress();
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.', 'muted');
+        setMcuRomStatus('No device selected.', 'muted');
+      } else {
+        setStatus(`MCU ROM dump failed: ${err.message}`, 'err');
+        setMcuRomStatus(`Vector table dump failed: ${err.message}`, 'err');
+      }
+    }
+  });
+
+  dumpMcuAppHeaderBtn.addEventListener('click', async () => {
+    try {
+      await dumpMcuRomRegion(MCU_APP_HEADER_START, MCU_APP_HEADER_LENGTH, 'app_header');
+    } catch (err) {
+      resetProgress();
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.', 'muted');
+        setMcuRomStatus('No device selected.', 'muted');
+      } else {
+        setStatus(`MCU ROM dump failed: ${err.message}`, 'err');
+        setMcuRomStatus(`App header dump failed: ${err.message}`, 'err');
+      }
+    }
   });
 
   knownDmrIdInputEl.addEventListener('input', () => {
@@ -1457,6 +2342,7 @@
   bootModeSelectEl.addEventListener('change', refreshButtons);
 
   resetProgress();
+  renderMappingInspectors(null);
   refreshButtons();
   </script>
 </body>

@@ -128,10 +128,64 @@
   hardware-proven DMR ID write
   DMR ID inspector remains visible
   isolated DMR ID write support only
+  read-only custom-data inspectors for boot image and satellite TLE blocks
+  read-only voice prompt flash header / TOC inspection and backup tooling
+  test-page-only candidate MCU ROM spot-dump tooling
 - `docs/cps/index.html`:
   read/open/save/edit only
   full radio write disabled
 - Main CPS integration should wait until isolated write paths are boringly stable
+
+### Read-Only Mapping Status
+
+- Boot image area:
+  confirmed as OpenGD77 custom-data block type `0x01`
+  lives inside the codeplug custom-data area at file `0x1EE60-0x1FFFF`
+  observed block header at `0x1FAE4`
+  observed payload start at `0x1FAEC`
+  boot image payload size is `1024` bytes (`128x64 / 8`)
+  test page now exposes read-only preview and raw export
+- Satellite data area:
+  confirmed as OpenGD77 custom-data block type `0x03`
+  lives inside the same codeplug custom-data area
+  observed block header at `0x1F074`
+  observed payload start at `0x1F07C`
+  firmware satellite custom block size is `2520` bytes
+  test page now exposes read-only preview and raw export
+- OpenGD77 custom-data block layout inside the 128 KB codeplug:
+  start `0x1EE60`
+  length `4512` bytes
+  header starts with ASCII `OpenGD77`
+  block header format appears to be:
+  `byte 0 type`
+  `bytes 1-3 reserved / zero`
+  `bytes 4-7 uint32 LE length`
+  `bytes 8.. payload`
+  observed block sequence in multiple codeplugs:
+  `0x1EE6C type 2 melody len 512`
+  `0x1F074 type 3 satellite len 2520`
+  `0x1FA54 type 4 day theme len 64`
+  `0x1FA9C type 5 night theme len 64`
+  `0x1FAE4 type 1 boot image len 1024`
+  `0x1FEEC uninitialised 0xFF area`
+- Voice prompts:
+  firmware constants on STM32 place the current header at raw SPI flash `0xAF400`
+  legacy header candidate remains `0x100000`
+  header is `8` bytes and the colour-radio TOC is `368 * 4 = 1472` bytes
+  test page now exposes read-only header / TOC inspection and active-block backup
+- Secure registers:
+  firmware USB handler exposes flash security registers at CPS access area `0x0A`
+  current test-page-only backup target is start `0x00000000`, length `768` bytes
+  this is now the smallest extra read-only protocol backup path in the test lab
+- MCU ROM:
+  firmware USB handler exposes CPS access area `5` for MCU ROM reads
+  main proven JS helper remains unchanged
+  source start address is `0x00000000`
+  STM32 full length target is `1048576` bytes
+  test page currently exposes only small read-only candidate dumps for vector table and app header
+- Backup SRAM / RTC backup registers:
+  still pending
+  current CPS read handler does not expose BKPSRAM or RTC backup registers directly
 
 ### Next Steps
 
@@ -148,6 +202,10 @@
   `lowest valid 1 -> 00 00 00 01`
   `highest valid 16776415 -> 16 77 64 15`
 - Compare picture/text backups to document changed bytes
+- Validate secure-register read-only backup on hardware using area `0x0A`
+- Validate voice prompt flash header / TOC reads on hardware and confirm whether the active header is current or legacy on each target radio
+- Validate area `5` MCU ROM reads on hardware before attempting any larger ROM backup flow
+- Determine whether backup SRAM / RTC backup registers need firmware-side read exposure before they can be inspected safely
 - Later integrate boot text, boot mode, and callsign controls into main CPS with the same guardrails
 - Do not enable full-codeplug write until separately validated
 - Do not integrate DMR ID write into the main CPS until the isolated test path is boringly stable
